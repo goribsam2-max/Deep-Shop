@@ -54,10 +54,10 @@ const Home: React.FC = () => {
             The Ultimate Destination for Flagship Tech.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="h-[50px] px-10 bg-primary text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
+            <button className="h-[60px] px-10 bg-primary text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
               EXPLORE GEAR
             </button>
-            <Link to="/sell-phone" className="h-[50px] px-10 glass text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all border-white/30 flex items-center justify-center">
+            <Link to="/sell-phone" className="h-[60px] px-10 glass text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-white/10 transition-all border-white/30 flex items-center justify-center">
               SELL DEVICE
             </Link>
           </div>
@@ -71,7 +71,7 @@ const Home: React.FC = () => {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-8 h-[45px] rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm border ${
+              className={`px-8 h-[50px] rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-sm border ${
                 activeCategory === cat 
                   ? 'bg-primary text-white border-primary scale-105' 
                   : 'glass text-slate-500 border-transparent hover:bg-slate-100 dark:hover:bg-white/5'
@@ -100,49 +100,47 @@ const Home: React.FC = () => {
 };
 
 const ProductCard: React.FC<{ product: Product }> = ({ product }) => {
-  // Enhanced Stock Logic: Check against specific string variants
   const stockStr = (product.stock || '').toLowerCase().replace(/\s/g, '');
   const isOutOfStock = stockStr === 'outofstock';
   const isPreOrder = stockStr === 'preorder';
-  const isInStock = stockStr === 'instock' || !isOutOfStock;
 
   return (
     <Link 
       to={`/product/${product.id}`}
-      className="group flex flex-col glass rounded-2xl overflow-hidden transition-all duration-500 hover:-translate-y-2 border-white/20 h-full shadow-sm hover:shadow-xl"
+      className="group flex flex-col glass rounded-[28px] overflow-hidden transition-all duration-500 hover:-translate-y-2 border-white/20 h-full shadow-sm hover:shadow-2xl"
     >
-      <div className="aspect-square overflow-hidden relative bg-white">
+      <div className="aspect-square overflow-hidden relative bg-white flex items-center justify-center p-0.5">
         <img 
           src={product.image || 'https://picsum.photos/600/600'} 
           alt={product.name} 
-          className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-700"
+          className="w-[90%] h-[90%] object-contain group-hover:scale-110 transition-transform duration-700"
         />
         
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-10">
-            <span className="text-white font-black text-[9px] uppercase tracking-widest border border-white/40 px-3 py-1.5 rounded-lg">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center z-10">
+            <span className="text-white font-black text-[10px] uppercase tracking-widest border-2 border-white/30 px-4 py-2 rounded-xl">
               Out of Stock
             </span>
           </div>
         )}
         {isPreOrder && (
-          <div className="absolute bottom-2 left-2 z-10">
-            <span className="bg-accent text-white font-black text-[7px] uppercase tracking-widest px-2 py-1 rounded-md shadow-lg">
+          <div className="absolute bottom-3 left-3 z-10">
+            <span className="bg-accent text-white font-black text-[8px] uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-xl">
               Pre-Order
             </span>
           </div>
         )}
       </div>
       
-      <div className="p-4 flex flex-col h-full bg-slate-50/30 dark:bg-transparent">
-        <h3 className="font-bold text-xs mb-3 line-clamp-2 leading-snug group-hover:text-primary transition-colors uppercase tracking-tight">
+      <div className="p-5 flex flex-col h-full bg-slate-50/50 dark:bg-transparent">
+        <h3 className="font-extrabold text-[16px] md:text-lg mb-4 line-clamp-2 leading-tight group-hover:text-primary transition-colors uppercase tracking-tight">
           {product.name}
         </h3>
         
         <div className="flex items-center justify-between mt-auto">
-          <span className="text-md font-black text-slate-900 dark:text-white">৳{product.price.toLocaleString()}</span>
-          <button className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isOutOfStock ? 'bg-slate-200 text-slate-400' : 'bg-primary text-white shadow-md active:scale-90'}`}>
-            <i className={`fas ${isOutOfStock ? 'fa-lock' : 'fa-plus'} text-xs`}></i>
+          <span className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">৳{product.price.toLocaleString()}</span>
+          <button className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isOutOfStock ? 'bg-slate-200 text-slate-400' : 'bg-primary text-white shadow-xl active:scale-90 hover:brightness-110'}`}>
+            <i className={`fas ${isOutOfStock ? 'fa-lock' : 'fa-plus'} text-sm`}></i>
           </button>
         </div>
       </div>
