@@ -1,0 +1,8 @@
+{
+  "name": "Deep Shop Bangladesh",
+  "description": "Premium shopping experience for Bangladesh with full tracking, custom payments, and admin control.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
