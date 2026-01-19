@@ -39,7 +39,7 @@ const Home: React.FC = () => {
       <section className="relative h-[60vh] flex items-center justify-center overflow-hidden bg-slate-900">
         <div className="absolute inset-0 z-0">
           <img 
-            src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=2000&auto=format&fit=crop" 
+            src="https://i.ibb.co.com/cKknZQx1/IMG-2179.jpg" 
             className="w-full h-full object-cover opacity-50" 
             alt="Hero"
           />
