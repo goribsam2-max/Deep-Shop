@@ -32,16 +32,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, user }) => {
           {/* Brand */}
           <div className="flex items-center justify-between mb-12">
             <Link to="/" onClick={onClose} className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl">
-                 <i className="fas fa-gem text-xl"></i>
+              <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl">
+                 <i className="fas fa-gem text-2xl"></i>
               </div>
               <div>
                 <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white leading-none">DEEP SHOP</h2>
                 <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-1">Premium Official</p>
               </div>
             </Link>
-            <button onClick={onClose} className="w-10 h-10 glass rounded-xl flex items-center justify-center text-slate-400 hover:text-danger transition-colors">
-              <i className="fas fa-times text-xl"></i>
+            <button onClick={onClose} className="w-12 h-12 glass rounded-2xl flex items-center justify-center text-slate-400 hover:text-danger transition-colors">
+              <i className="fas fa-times text-2xl"></i>
             </button>
           </div>
 
@@ -49,7 +49,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, user }) => {
           {user ? (
             <div className="glass p-6 rounded-ios-lg border-white/40 mb-10 shadow-inner">
                <div className="flex items-center gap-4">
-                  <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=2e8b57&color=fff`} className="w-14 h-14 rounded-2xl shadow-lg border-2 border-primary/20" />
+                  <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=2e8b57&color=fff`} className="w-16 h-16 rounded-2xl shadow-lg border-2 border-primary/20" />
                   <div>
                     <h4 className="font-black text-lg">{user.name}</h4>
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{user.rewardPoints || 0} DEEP POINTS</p>
@@ -57,8 +57,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, user }) => {
                </div>
             </div>
           ) : (
-            <Link to="/auth" onClick={onClose} className="bg-primary text-white h-16 rounded-2xl flex items-center justify-center gap-3 font-black text-sm uppercase tracking-widest mb-10 shadow-xl hover:scale-[1.02] transition-all">
-              <i className="fas fa-sign-in-alt"></i> Login to Account
+            <Link 
+              to="/auth" 
+              onClick={onClose} 
+              className="bg-primary text-white h-[80px] rounded-2xl flex items-center justify-center gap-5 font-black text-lg uppercase tracking-widest mb-10 shadow-[0_20px_50px_rgba(46,139,87,0.3)] hover:scale-[1.02] active:scale-95 transition-all border-b-8 border-black/10"
+            >
+              <i className="fas fa-sign-in-alt text-xl"></i> Login to Account
             </Link>
           )}
 
