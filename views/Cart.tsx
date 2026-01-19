@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -64,7 +65,7 @@ const Cart: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-sm line-clamp-1">{item.name}</h3>
-                <span className="text-primary font-black">à§³{item.price.toLocaleString()}</span>
+                <span className="text-primary font-black">৳{item.price.toLocaleString()}</span>
                 <div className="flex items-center gap-3 mt-2">
                   <button 
                     onClick={() => updateQuantity(item.id, -1)}
@@ -93,7 +94,7 @@ const Cart: React.FC = () => {
           <div className="space-y-3 mb-6">
             <div className="flex justify-between text-slate-500">
               <span>Subtotal</span>
-              <span className="font-semibold">à§³{subtotal.toLocaleString()}</span>
+              <span className="font-semibold">৳{subtotal.toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-slate-500">
               <span>Delivery Fee</span>
@@ -102,7 +103,7 @@ const Cart: React.FC = () => {
             <div className="h-px bg-slate-100 dark:bg-white/10 my-4"></div>
             <div className="flex justify-between text-xl font-black">
               <span>Total</span>
-              <span className="text-primary">à§³{subtotal.toLocaleString()}</span>
+              <span className="text-primary">৳{subtotal.toLocaleString()}</span>
             </div>
           </div>
           <button 
