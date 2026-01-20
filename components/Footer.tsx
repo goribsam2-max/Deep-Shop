@@ -66,7 +66,7 @@ const Footer: React.FC = () => {
         </div>
 
         <div className="mt-16 pt-8 border-t border-slate-200 dark:border-white/10 flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-          <p>© 2024 DEEP SHOP BANGLADESH. ALL RIGHTS RESERVED.</p>
+          <p>© 2026 DEEP SHOP BANGLADESH. ALL RIGHTS RESERVED.</p>
           <div className="flex gap-8">
             <span className="flex items-center gap-2"><i className="fas fa-shield-alt text-success"></i> Secured Payment</span>
             <span className="flex items-center gap-2"><i className="fas fa-truck text-accent"></i> Dhaka Wide Delivery</span>
