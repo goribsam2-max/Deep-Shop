@@ -7,12 +7,18 @@ interface LoaderProps {
 
 const Loader: React.FC<LoaderProps> = ({ fullScreen }) => {
   const loaderContent = (
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative">
-        <div className="w-12 h-12 rounded-full border-4 border-slate-200 dark:border-white/10"></div>
-        <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+    <div className="flex flex-col items-center gap-6">
+      <div className="relative w-16 h-16">
+        <div className="absolute inset-0 rounded-2xl border-2 border-slate-100 dark:border-white/5"></div>
+        <div className="absolute inset-0 rounded-2xl border-b-2 border-primary animate-spin"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+           <img src="https://i.ibb.co.com/cKknZQx1/IMG-2179.jpg" className="w-8 h-8 rounded-lg opacity-20 grayscale" alt="Logo" />
+        </div>
       </div>
-      <span className="text-sm font-bold text-primary animate-pulse-soft">Loading Deep Shop...</span>
+      <div className="flex flex-col items-center">
+        <span className="text-[10px] font-black uppercase tracking-[0.5em] text-primary animate-pulse">Initializing</span>
+        <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 mt-1">Deep Shop Secure Node</span>
+      </div>
     </div>
   );
 
@@ -25,7 +31,7 @@ const Loader: React.FC<LoaderProps> = ({ fullScreen }) => {
   }
 
   return (
-    <div className="w-full flex items-center justify-center py-10">
+    <div className="w-full flex items-center justify-center py-20">
       {loaderContent}
     </div>
   );
