@@ -11,37 +11,35 @@ interface NavbarProps {
 
 const Navbar: React.FC<NavbarProps> = ({ user, onOpenMenu, hasUnreadNotify }) => {
   return (
-    <nav className="sticky top-0 z-50 glass h-20 flex items-center justify-between px-4 md:px-12 border-b border-slate-200 dark:border-white/10 shadow-lg">
+    <nav className="sticky top-0 z-[60] glass h-20 flex items-center justify-between px-4 md:px-12 border-b border-slate-200 dark:border-white/5 shadow-sm">
       <div className="flex items-center gap-4">
         <button 
           onClick={onOpenMenu}
-          className="w-12 h-12 glass rounded-2xl flex items-center justify-center text-slate-600 dark:text-white hover:bg-primary hover:text-white transition-all shadow-sm"
+          className="w-11 h-11 bg-slate-50 dark:bg-white/5 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-300 hover:text-primary transition-all border border-slate-200 dark:border-white/10"
         >
-          <i className="fas fa-bars-staggered text-xl"></i>
+          <i className="fas fa-bars-staggered text-lg"></i>
         </button>
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-11 h-11 bg-primary rounded-xl flex items-center justify-center text-white shadow-xl overflow-hidden border-2 border-white/20">
-             <i className="fas fa-gem text-lg"></i>
+          <div className="w-11 h-11 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-lg p-0.5 bg-white">
+             <img src="https://i.ibb.co.com/cKknZQx1/IMG-2179.jpg" className="w-full h-full object-cover rounded-lg" alt="Logo" />
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-black tracking-tighter text-slate-900 dark:text-white leading-none">DEEP SHOP</span>
-            <span className="text-[8px] font-black tracking-[0.2em] text-primary uppercase mt-0.5">Premium Official</span>
+            <span className="text-[7px] font-black tracking-[0.3em] text-primary uppercase mt-1">Official Flagship</span>
           </div>
         </Link>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <Link to="/profile?tab=notifications" className="w-12 h-12 glass rounded-2xl flex items-center justify-center text-slate-600 dark:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition-all">
-            <i className="far fa-bell text-2xl"></i>
-          </Link>
+      <div className="flex items-center gap-2">
+        <Link to="/profile?tab=notifications" className="relative w-11 h-11 bg-slate-50 dark:bg-white/5 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-white/10">
+          <i className="far fa-bell text-xl"></i>
           {hasUnreadNotify && (
-            <span className="absolute top-2 right-2 w-3.5 h-3.5 bg-danger rounded-full border-2 border-white dark:border-black animate-pulse"></span>
+            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-primary rounded-full border-2 border-white dark:border-black animate-pulse"></span>
           )}
-        </div>
+        </Link>
         
-        <Link to="/profile" className="flex items-center gap-3 group border-l border-slate-200 dark:border-white/10 pl-3">
-          <div className="w-11 h-11 bg-slate-200 dark:bg-white/10 rounded-2xl flex items-center justify-center overflow-hidden border-2 border-primary/20 group-hover:border-primary transition-all shadow-md">
+        <Link to="/profile" className="flex items-center gap-3 pl-2">
+          <div className="w-11 h-11 bg-slate-100 dark:bg-white/10 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10">
             {user ? (
               <img 
                 src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=2e8b57&color=fff&size=128`} 
@@ -49,7 +47,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onOpenMenu, hasUnreadNotify }) =>
                 className="w-full h-full object-cover"
               />
             ) : (
-              <i className="fas fa-user-circle text-2xl text-slate-400"></i>
+              <div className="w-full h-full flex items-center justify-center"><i className="fas fa-user text-slate-400"></i></div>
             )}
           </div>
         </Link>
