@@ -1,6 +1,7 @@
 
 export type OrderStatus = 'pending' | 'packaging' | 'shipped' | 'delivered' | 'canceled';
 export type SellerRank = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'hero' | 'grand';
+export type SellRequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface User {
   uid: string;
@@ -15,15 +16,39 @@ export interface User {
   rewardPoints: number;
   rankOverride?: SellerRank;
   isBanned?: boolean;
+  bannedDevices?: string[];
+  pushNotificationsEnabled?: boolean;
 }
 
-export interface Notification {
+export interface SellRequest {
   id: string;
-  title: string;
-  message: string;
-  imageUrl?: string;
+  userId: string;
+  userName: string;
+  deviceName: string;
+  details: string;
+  expectedPrice: number;
+  condition: string;
+  status: SellRequestStatus;
   timestamp: any;
-  isRead: boolean;
+}
+
+export interface SiteConfig {
+  bannerVisible: boolean;
+  bannerText: string;
+  bannerType: 'info' | 'success' | 'warning';
+  metaTitle: string;
+  metaDescription: string;
+  ogImage: string;
+  keywords: string;
+}
+
+export interface ReviewReply {
+  id: string;
+  userId: string;
+  userName: string;
+  isAdmin: boolean;
+  text: string;
+  timestamp: any;
 }
 
 export interface Review {
@@ -34,6 +59,8 @@ export interface Review {
   rating: number;
   comment: string;
   likes: string[];
+  dislikes: string[];
+  replies: ReviewReply[];
   timestamp: any;
 }
 
@@ -45,13 +72,9 @@ export interface Product {
   oldPrice?: number;
   description: string;
   image: string;
-  stock: string; // Changed to string for 'instock', 'out of stock', 'pre order'
-  sellerMention?: {
-    uid: string;
-    name: string;
-    rank?: SellerRank;
-  };
-  specs?: Record<string, string>;
+  stock: string;
+  mentionedUserId?: string;
+  mentionedUserName?: string;
 }
 
 export interface Order {
@@ -82,13 +105,10 @@ export interface Order {
   timestamp: any;
 }
 
-export interface SellRequest {
+export interface Notification {
   id: string;
-  userId: string;
-  userName: string;
-  deviceName: string;
-  details: string;
-  expectedPrice: number;
-  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  title: string;
+  message: string;
+  isRead: boolean;
   timestamp: any;
 }
