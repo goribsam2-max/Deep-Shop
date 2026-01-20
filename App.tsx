@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { auth, db } from './services/firebase';
@@ -36,7 +37,6 @@ const AppContent: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Device ID Logic
     let deviceId = localStorage.getItem('ds_hw_id');
     if (!deviceId) {
       deviceId = 'hw_' + Math.random().toString(36).substring(2, 15);
@@ -48,10 +48,8 @@ const AppContent: React.FC = () => {
         const unsubUser = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
             const userData = { uid: firebaseUser.uid, ...docSnap.data() } as User;
-            
-            // Check for Hardware Ban
             if (userData.isBanned || (userData.bannedDevices && userData.bannedDevices.includes(deviceId!))) {
-              notify('ACCESSED DENIED: This account or device is permanently blacklisted.', 'error');
+              notify('Your access has been restricted due to security policy violations.', 'error');
               signOut(auth);
               setUser(null);
             } else {
@@ -72,28 +70,11 @@ const AppContent: React.FC = () => {
     return () => unsubscribeAuth();
   }, []);
 
-  // Dynamic SEO & Meta
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, 'site_config', 'global'), (snap) => {
       if (snap.exists()) {
         const config = snap.data() as SiteConfig;
         document.title = config.metaTitle || 'Deep Shop Bangladesh';
-        
-        const updateMeta = (name: string, content: string, property = false) => {
-          let el = document.querySelector(`meta[${property ? 'property' : 'name'}="${name}"]`);
-          if (!el) {
-            el = document.createElement('meta');
-            el.setAttribute(property ? 'property' : 'name', name);
-            document.head.appendChild(el);
-          }
-          el.setAttribute('content', content);
-        };
-
-        updateMeta('description', config.metaDescription || '');
-        updateMeta('keywords', config.keywords || '');
-        updateMeta('og:title', config.metaTitle || '', true);
-        updateMeta('og:description', config.metaDescription || '', true);
-        updateMeta('og:image', config.ogImage || '', true);
       }
     });
     return () => unsubConfig();
@@ -106,7 +87,18 @@ const AppContent: React.FC = () => {
   }, [user?.uid]);
 
   const notify = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setGlobalNotify({ msg, type });
+    // Professional Error Cleaner
+    let cleanMsg = msg;
+    if (type === 'error') {
+      cleanMsg = msg.replace(/Firebase: /g, '')
+                    .replace(/auth\//g, '')
+                    .replace(/\(.*\)/g, '')
+                    .replace(/-/g, ' ')
+                    .trim();
+      // Capitalize first letter
+      cleanMsg = cleanMsg.charAt(0).toUpperCase() + cleanMsg.slice(1);
+    }
+    setGlobalNotify({ msg: cleanMsg, type });
   };
 
   if (loading) return <Loader fullScreen />;
