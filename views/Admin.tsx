@@ -174,7 +174,7 @@ const Admin: React.FC = () => {
                 {filteredUsers.map(u => (
                   <div key={u.uid} className={`bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-slate-100 dark:border-white/5 transition-all ${u.isBanned ? 'opacity-50 grayscale' : 'hover:border-primary/20'}`}>
                     <div className="flex items-center gap-4 mb-6">
-                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=2e8b57&color=fff&bold=true`} className="w-12 h-12 rounded-xl" />
+                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-12 h-12 rounded-xl" />
                       <div className="min-w-0">
                         <h4 className="font-bold text-sm truncate">{u.name}</h4>
                         <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
@@ -239,14 +239,22 @@ const Admin: React.FC = () => {
                       <td className="p-6">#{o.id.substring(0,8).toUpperCase()}</td>
                       <td className="p-6">{o.userInfo?.userName}</td>
                       <td className="p-6">৳{o.totalAmount?.toLocaleString()}</td>
-                      <td className="p-6"><span className="px-3 py-1 bg-primary/5 text-primary rounded-lg text-[8px] uppercase font-black">{o.status}</span></td>
+                      <td className="p-6">
+                        <span className={`px-3 py-1 rounded-lg text-[8px] uppercase font-black ${o.status === 'canceled' ? 'bg-red-100 text-red-500' : 'bg-primary/5 text-primary'}`}>
+                          {o.status}
+                        </span>
+                      </td>
                       <td className="p-6">
                         <select 
                           value={o.status} 
                           onChange={async (e) => { await updateDoc(doc(db, 'orders', o.id), { status: e.target.value }); fetchData(); }}
                           className="bg-slate-50 dark:bg-black/20 rounded-lg px-3 h-9 text-[9px] uppercase font-bold outline-none border border-transparent focus:border-primary/20"
                         >
-                          <option value="pending">Pending</option><option value="packaging">Packaging</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option>
+                          <option value="pending">Pending</option>
+                          <option value="packaging">Packaging</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="canceled">Canceled</option>
                         </select>
                       </td>
                     </tr>
@@ -290,7 +298,7 @@ const Admin: React.FC = () => {
                           }}
                           className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
                         >
-                          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=2e8b57&color=fff&bold=true`} className="w-8 h-8 rounded-lg" />
+                          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-8 h-8 rounded-lg" />
                           <div className="text-left">
                             <p className="font-bold text-[11px] uppercase tracking-tight">{u.name}</p>
                             <p className="text-[9px] text-slate-400">{u.phone}</p>
@@ -332,7 +340,31 @@ const Admin: React.FC = () => {
           )}
 
           {activeTab === 'settings' && (
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-8 animate-fade-in">
+              <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl border border-slate-100 dark:border-white/5 space-y-6 shadow-sm">
+                <h3 className="font-bold text-sm uppercase tracking-widest text-primary border-b border-slate-50 dark:border-white/5 pb-4">SEO & Global Meta Tags</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Meta Title</label>
+                    <input className="w-full h-12 px-5 bg-slate-50 dark:bg-black/20 rounded-xl outline-none font-bold text-xs" value={siteConfig.metaTitle} onChange={e => setSiteConfig({...siteConfig, metaTitle: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Meta Keywords (Comma separated)</label>
+                    <input className="w-full h-12 px-5 bg-slate-50 dark:bg-black/20 rounded-xl outline-none font-bold text-xs" value={siteConfig.keywords} onChange={e => setSiteConfig({...siteConfig, keywords: e.target.value})} />
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">Meta Description</label>
+                    <textarea className="w-full p-5 bg-slate-50 dark:bg-black/20 rounded-xl outline-none font-medium text-xs h-24" value={siteConfig.metaDescription} onChange={e => setSiteConfig({...siteConfig, metaDescription: e.target.value})} />
+                  </div>
+                  <div className="col-span-full space-y-2">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">OpenGraph Image Link (URL)</label>
+                    <input className="w-full h-12 px-5 bg-slate-50 dark:bg-black/20 rounded-xl outline-none font-bold text-xs" value={siteConfig.ogImage} onChange={e => setSiteConfig({...siteConfig, ogImage: e.target.value})} />
+                  </div>
+                </div>
+                <button onClick={saveConfig} className="w-full h-14 bg-slate-900 dark:bg-white text-white dark:text-black rounded-xl font-bold uppercase text-[10px] tracking-widest mt-4">Save Metadata</button>
+              </div>
+
               <div className="bg-white dark:bg-zinc-900 p-8 rounded-2xl border border-slate-100 dark:border-white/5 space-y-4 shadow-sm">
                 <h3 className="font-bold text-sm uppercase tracking-widest">Store Ticker</h3>
                 <div className="flex items-center justify-between py-2">
