@@ -93,9 +93,14 @@ export interface Order {
   }[];
   totalAmount: number;
   advancePaid: number;
-  transactionId: string;
-  paymentMethod: 'bkash' | 'nagad';
+  transactionId?: string;
+  paymentMethod: 'bkash' | 'nagad' | 'no-advance';
   status: OrderStatus;
+  trustProof?: {
+    idType: string;
+    parentName: string;
+    parentPhone: string;
+  };
   address: {
     fullAddress: string;
     district: string;
