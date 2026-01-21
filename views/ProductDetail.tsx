@@ -35,6 +35,11 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ user }) => {
           const prodData = { id: docSnap.id, ...docSnap.data() } as Product;
           setProduct(prodData);
           
+          // Dynamic Meta Updates
+          document.title = `${prodData.name} - Deep Shop Bangladesh`;
+          const metaDesc = document.querySelector('meta[name="description"]');
+          if (metaDesc) metaDesc.setAttribute('content', prodData.description.substring(0, 160));
+          
           if (prodData.mentionedUserId) {
             const uSnap = await getDoc(doc(db, 'users', prodData.mentionedUserId));
             if (uSnap.exists()) setMentionedUser({ uid: uSnap.id, ...uSnap.data() } as User);
@@ -113,7 +118,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ user }) => {
                   {showPopup && (
                     <div className="absolute top-14 left-0 z-50 w-72 glass p-6 rounded-3xl shadow-2xl animate-slide-up border border-white/20">
                       <div className="flex items-center gap-4 mb-5 pb-5 border-b border-slate-100 dark:border-white/10">
-                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(mentionedUser.name)}&background=2e8b57&color=fff&bold=true`} className="w-12 h-12 rounded-2xl" />
+                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(mentionedUser.name)}&background=e11d48&color=fff&bold=true`} className="w-12 h-12 rounded-2xl" />
                         <div className="min-w-0">
                           <h4 className="font-bold text-sm truncate uppercase tracking-tight leading-none mb-1.5">{mentionedUser.name}</h4>
                           <span className="text-[9px] font-black text-primary uppercase tracking-[0.2em]">Verified Contributor</span>
@@ -201,7 +206,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({ user }) => {
         <div className="space-y-10">
           {reviews.map(rev => (
             <div key={rev.id} className="pb-10 border-b border-slate-50 dark:border-white/5 flex gap-6 last:border-0 items-start">
-              <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(rev.userName)}&background=2e8b57&color=fff&bold=true`} className="w-12 h-12 rounded-2xl flex-shrink-0" />
+              <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(rev.userName)}&background=e11d48&color=fff&bold=true`} className="w-12 h-12 rounded-2xl flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1.5">
                   <h4 className="font-bold text-[10px] uppercase tracking-tight">{rev.userName}</h4>
