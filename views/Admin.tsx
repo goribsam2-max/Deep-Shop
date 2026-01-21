@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, getDocs, doc, updateDoc, addDoc, serverTimestamp, setDoc, deleteDoc, orderBy, where } from 'firebase/firestore';
@@ -58,6 +57,12 @@ const Admin: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Always fetch users if on products tab for mentions
+      if (activeTab === 'products') {
+        const uSnap = await getDocs(collection(db, 'users'));
+        setUsers(uSnap.docs.map(d => ({ uid: d.id, ...d.data() } as User)));
+      }
+
       if (activeTab === 'settings') {
         const snap = await getDocs(collection(db, 'site_config'));
         const config = snap.docs.find(d => d.id === 'global');
@@ -143,15 +148,20 @@ const Admin: React.FC = () => {
 
   const handleUserSearch = (val: string) => {
     setUserSearch(val);
-    // If the string contains @, search using the part after @
-    const queryStr = val.includes('@') ? val.split('@')[1] : val;
     
-    if (queryStr.length > 0) {
-      const filtered = users.filter(u => 
-        u.name?.toLowerCase().includes(queryStr.toLowerCase()) || 
-        u.email?.toLowerCase().includes(queryStr.toLowerCase())
-      );
-      setFilteredUsers(filtered.slice(0, 5));
+    // Check if input contains '@' anywhere to trigger popup
+    if (val.includes('@')) {
+      const parts = val.split('@');
+      const queryStr = parts[parts.length - 1].toLowerCase();
+      
+      const filtered = queryStr.length > 0
+        ? users.filter(u => 
+            u.name?.toLowerCase().includes(queryStr) || 
+            u.email?.toLowerCase().includes(queryStr)
+          ).slice(0, 8)
+        : users.slice(0, 8); // Show first 8 users if only '@' is present
+      
+      setFilteredUsers(filtered);
       setShowUserDropdown(true);
     } else {
       setShowUserDropdown(false);
@@ -563,7 +573,7 @@ const Admin: React.FC = () => {
                 </select>
               </div>
               
-              {/* Mention User Section (Smart Dropdown with @ trigger logic) */}
+              {/* Mention User Section (Refined Popup) */}
               <div className="col-span-full relative" ref={dropdownRef}>
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Mention User (Type @ to search)</label>
                 <div className="relative">
@@ -575,25 +585,31 @@ const Admin: React.FC = () => {
                   />
                 </div>
                 
-                {showUserDropdown && filteredUsers.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 z-[210] mt-2 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in max-w-xs">
-                    <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Select User</span>
+                {showUserDropdown && (
+                  <div className="absolute top-full left-0 right-0 z-[210] mt-1 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in max-w-xs ring-1 ring-black/5">
+                    <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5">
+                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Mention User</span>
                     </div>
-                    {filteredUsers.map(u => (
-                      <button
-                        key={u.uid}
-                        type="button"
-                        onClick={() => selectMentionUser(u)}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-primary hover:text-white transition-colors border-b last:border-0 border-slate-100 dark:border-white/5"
-                      >
-                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-8 h-8 rounded-lg" />
-                        <div className="text-left min-w-0">
-                          <p className="text-[10px] font-black uppercase truncate">{u.name}</p>
-                          <p className="text-[8px] opacity-60 truncate">{u.email}</p>
+                    <div className="max-h-60 overflow-y-auto no-scrollbar">
+                      {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                        <button
+                          key={u.uid}
+                          type="button"
+                          onClick={() => selectMentionUser(u)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-primary hover:text-white group transition-colors border-b last:border-0 border-slate-100 dark:border-white/5"
+                        >
+                          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-7 h-7 rounded-lg shrink-0" />
+                          <div className="text-left min-w-0">
+                            <p className="text-[10px] font-black uppercase truncate">{u.name}</p>
+                            <p className="text-[8px] opacity-60 truncate group-hover:text-white/80">{u.email}</p>
+                          </div>
+                        </button>
+                      )) : (
+                        <div className="p-4 text-center">
+                          <p className="text-[8px] font-black uppercase text-slate-300">No matches found</p>
                         </div>
-                      </button>
-                    ))}
+                      )}
+                    </div>
                   </div>
                 )}
                 
