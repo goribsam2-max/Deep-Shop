@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, getDocs, doc, updateDoc, addDoc, serverTimestamp, setDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, doc, updateDoc, addDoc, serverTimestamp, setDoc, deleteDoc, orderBy, where } from 'firebase/firestore';
 import { Order, Product, User, SiteConfig, SellRequest, PromoteRequest, SellerRank } from '../types';
 import Loader from '../components/Loader';
 import { NotificationContext } from '../App';
@@ -21,10 +21,17 @@ const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'requests' | 'settings' | 'promotes' | 'push'>('orders');
   const { notify } = useContext(NotificationContext);
 
+  // Mention System State
+  const [userSearch, setUserSearch] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   // Modal States
   const [showProductModal, setShowProductModal] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<Partial<Product>>({
-    name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock'
+    name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock',
+    mentionedUserId: '', mentionedUserName: ''
   });
   const [personalMsgUser, setPersonalMsgUser] = useState<User | null>(null);
   const [personalMsgContent, setPersonalMsgContent] = useState({ title: '', message: '' });
@@ -36,6 +43,17 @@ const Admin: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [activeTab]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -95,17 +113,59 @@ const Admin: React.FC = () => {
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let productId = '';
       if (showProductModal?.id) {
-        await updateDoc(doc(db, 'products', showProductModal.id), productForm);
+        productId = showProductModal.id;
+        await updateDoc(doc(db, 'products', productId), productForm);
         notify('Product Updated', 'success');
       } else {
-        await addDoc(collection(db, 'products'), { ...productForm, views: 0, timestamp: serverTimestamp() });
+        const docRef = await addDoc(collection(db, 'products'), { ...productForm, views: 0, timestamp: serverTimestamp() });
+        productId = docRef.id;
         notify('Product Added', 'success');
       }
+
+      // Automatically notify mentioned user
+      if (productForm.mentionedUserId) {
+        await addDoc(collection(db, 'users', productForm.mentionedUserId, 'notifications'), {
+          title: 'You have been mentioned!',
+          message: `Deep Shop mentioned you on: ${productForm.name}. You can now promote this product from your profile.`,
+          image: productForm.image,
+          isRead: false,
+          timestamp: serverTimestamp()
+        });
+      }
+
       setShowProductModal(null);
-      setProductForm({ name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock' });
+      setProductForm({ name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock', mentionedUserId: '', mentionedUserName: '' });
       fetchData();
     } catch (e: any) { notify(e.message, 'error'); }
+  };
+
+  const handleUserSearch = (val: string) => {
+    setUserSearch(val);
+    // If the string contains @, search using the part after @
+    const queryStr = val.includes('@') ? val.split('@')[1] : val;
+    
+    if (queryStr.length > 0) {
+      const filtered = users.filter(u => 
+        u.name?.toLowerCase().includes(queryStr.toLowerCase()) || 
+        u.email?.toLowerCase().includes(queryStr.toLowerCase())
+      );
+      setFilteredUsers(filtered.slice(0, 5));
+      setShowUserDropdown(true);
+    } else {
+      setShowUserDropdown(false);
+    }
+  };
+
+  const selectMentionUser = (u: User) => {
+    setProductForm({
+      ...productForm,
+      mentionedUserId: u.uid,
+      mentionedUserName: u.name
+    });
+    setUserSearch(`@${u.name}`);
+    setShowUserDropdown(false);
   };
 
   const sendPersonalMessage = async (e: React.FormEvent) => {
@@ -235,7 +295,11 @@ const Admin: React.FC = () => {
           {activeTab === 'products' && (
             <div className="space-y-8">
               <button 
-                onClick={() => { setProductForm({ name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock' }); setShowProductModal({} as Product); }} 
+                onClick={() => { 
+                  setProductForm({ name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock', mentionedUserId: '', mentionedUserName: '' }); 
+                  setUserSearch('');
+                  setShowProductModal({} as Product); 
+                }} 
                 className="w-full h-14 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20"
               >
                 Add New Product
@@ -246,7 +310,11 @@ const Admin: React.FC = () => {
                     <div className="aspect-square bg-slate-50 dark:bg-black/40 rounded-2xl p-4 mb-4 relative overflow-hidden">
                       <img src={p.image} className="w-full h-full object-contain group-hover:scale-110 transition-all" alt={p.name} />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <button onClick={() => { setProductForm(p); setShowProductModal(p); }} className="w-10 h-10 bg-white rounded-xl text-slate-900 flex items-center justify-center"><i className="fas fa-edit"></i></button>
+                        <button onClick={() => { 
+                          setProductForm(p); 
+                          setUserSearch(p.mentionedUserName ? `@${p.mentionedUserName}` : '');
+                          setShowProductModal(p); 
+                        }} className="w-10 h-10 bg-white rounded-xl text-slate-900 flex items-center justify-center"><i className="fas fa-edit"></i></button>
                         <button onClick={() => deleteProduct(p.id)} className="w-10 h-10 bg-red-500 rounded-xl text-white flex items-center justify-center"><i className="fas fa-trash"></i></button>
                       </div>
                     </div>
@@ -472,13 +540,14 @@ const Admin: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="col-span-full">
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Product Name</label>
-                <input required className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-bold outline-none" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} placeholder="iPhone 15 Pro Max" />
+                <input required className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-bold outline-none border border-transparent focus:border-primary" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} placeholder="iPhone 15 Pro Max" />
               </div>
               <div>
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Category</label>
                 <select className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-black uppercase text-[10px] outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value as any})}>
                   <option value="mobile">Mobiles</option>
                   <option value="laptop">Laptops</option>
+                  <option value="clothes">Clothes</option>
                   <option value="accessories">Accessories</option>
                 </select>
               </div>
@@ -493,18 +562,61 @@ const Admin: React.FC = () => {
                   <option value="outofstock">Out of Stock</option>
                 </select>
               </div>
+              
+              {/* Mention User Section (Smart Dropdown with @ trigger logic) */}
+              <div className="col-span-full relative" ref={dropdownRef}>
+                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Mention User (Type @ to search)</label>
+                <div className="relative">
+                  <input 
+                    className="w-full h-12 bg-slate-50 dark:bg-black/20 px-5 rounded-xl font-bold outline-none border border-transparent focus:border-primary transition-all" 
+                    value={userSearch} 
+                    onChange={e => handleUserSearch(e.target.value)} 
+                    placeholder="@name or search user..." 
+                  />
+                </div>
+                
+                {showUserDropdown && filteredUsers.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-[210] mt-2 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in max-w-xs">
+                    <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Select User</span>
+                    </div>
+                    {filteredUsers.map(u => (
+                      <button
+                        key={u.uid}
+                        type="button"
+                        onClick={() => selectMentionUser(u)}
+                        className="w-full flex items-center gap-3 p-3 hover:bg-primary hover:text-white transition-colors border-b last:border-0 border-slate-100 dark:border-white/5"
+                      >
+                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-8 h-8 rounded-lg" />
+                        <div className="text-left min-w-0">
+                          <p className="text-[10px] font-black uppercase truncate">{u.name}</p>
+                          <p className="text-[8px] opacity-60 truncate">{u.email}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {productForm.mentionedUserId && !showUserDropdown && (
+                  <div className="mt-2 flex items-center gap-2 bg-primary/5 border border-primary/20 px-4 py-2 rounded-xl w-max">
+                    <span className="text-[8px] font-black uppercase text-primary tracking-widest">Mentioned: {productForm.mentionedUserName}</span>
+                    <button type="button" onClick={() => { setProductForm({...productForm, mentionedUserId: '', mentionedUserName: ''}); setUserSearch(''); }} className="text-primary hover:text-red-600 ml-2 transition-colors"><i className="fas fa-times-circle text-[12px]"></i></button>
+                  </div>
+                )}
+              </div>
+
               <div className="col-span-full">
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Product Image URL</label>
-                <input required className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-bold outline-none" value={productForm.image} onChange={e => setProductForm({...productForm, image: e.target.value})} placeholder="https://..." />
+                <input required className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-bold outline-none border border-transparent focus:border-primary" value={productForm.image} onChange={e => setProductForm({...productForm, image: e.target.value})} placeholder="https://..." />
               </div>
               <div className="col-span-full">
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Description</label>
-                <textarea className="w-full p-4 bg-slate-50 dark:bg-black/20 rounded-xl font-medium text-xs h-32 outline-none" value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} />
+                <textarea className="w-full p-4 bg-slate-50 dark:bg-black/20 rounded-xl font-medium text-xs h-32 outline-none border border-transparent focus:border-primary" value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} />
               </div>
             </div>
             <div className="flex gap-4 pt-6">
-              <button type="button" onClick={() => setShowProductModal(null)} className="flex-1 h-14 border border-slate-100 dark:border-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
-              <button type="submit" className="flex-[2] h-14 bg-slate-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Save Product</button>
+              <button type="button" onClick={() => setShowProductModal(null)} className="flex-1 h-14 border border-slate-100 dark:border-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
+              <button type="submit" className="flex-[2] h-14 bg-slate-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-black/20 active:scale-95 transition-all">Save Product</button>
             </div>
           </form>
         </div>
