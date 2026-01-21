@@ -1,7 +1,8 @@
 
-export type OrderStatus = 'pending' | 'packaging' | 'shipped' | 'delivered' | 'canceled';
+export type OrderStatus = 'pending' | 'processing' | 'packaging' | 'shipped' | 'delivered' | 'canceled';
 export type SellerRank = 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'hero' | 'grand';
 export type SellRequestStatus = 'pending' | 'approved' | 'rejected';
+export type PromoteRequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface User {
   uid: string;
@@ -18,6 +19,20 @@ export interface User {
   isBanned?: boolean;
   bannedDevices?: string[];
   pushNotificationsEnabled?: boolean;
+}
+
+export interface PromoteRequest {
+  id: string;
+  productId: string;
+  productName: string;
+  userId: string;
+  userName: string;
+  plan: '3days' | '7days';
+  price: number;
+  paymentMethod: 'bkash' | 'nagad';
+  transactionId: string;
+  status: PromoteRequestStatus;
+  timestamp: any;
 }
 
 export interface SellRequest {
@@ -40,28 +55,8 @@ export interface SiteConfig {
   metaDescription: string;
   ogImage: string;
   keywords: string;
-}
-
-export interface ReviewReply {
-  id: string;
-  userId: string;
-  userName: string;
-  isAdmin: boolean;
-  text: string;
-  timestamp: any;
-}
-
-export interface Review {
-  id: string;
-  productId: string;
-  userId: string;
-  userName: string;
-  rating: number;
-  comment: string;
-  likes: string[];
-  dislikes: string[];
-  replies: ReviewReply[];
-  timestamp: any;
+  oneSignalAppId?: string;
+  oneSignalRestKey?: string;
 }
 
 export interface Product {
@@ -75,6 +70,10 @@ export interface Product {
   stock: string;
   mentionedUserId?: string;
   mentionedUserName?: string;
+  views?: number;
+  isPromoted?: boolean;
+  promoteExpiry?: any;
+  timestamp?: any;
 }
 
 export interface Order {
@@ -114,6 +113,20 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
+  image?: string;
   isRead: boolean;
+  timestamp: any;
+}
+
+export interface Review {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  likes: string[];
+  dislikes: string[];
+  replies: any[];
   timestamp: any;
 }
