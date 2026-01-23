@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { db } from '../services/firebase';
-import { collection, query, getDocs, doc, updateDoc, addDoc, serverTimestamp, setDoc, deleteDoc, orderBy, where } from 'firebase/firestore';
-import { Order, Product, User, SiteConfig, SellRequest, PromoteRequest, SellerRank } from '../types';
+
+import React, { useState, useEffect, useContext } from 'react';
+import { db, auth } from '../services/firebase';
+import { collection, query, getDocs, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, orderBy } from 'firebase/firestore';
+import { Order, Product, User, SiteConfig, SellerRequest, HomeBanner, CustomAd } from '../types';
 import Loader from '../components/Loader';
 import { NotificationContext } from '../App';
 
@@ -9,534 +10,384 @@ const Admin: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [sellRequests, setSellRequests] = useState<SellRequest[]>([]);
-  const [promoteRequests, setPromoteRequests] = useState<PromoteRequest[]>([]);
+  const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [ads, setAds] = useState<CustomAd[]>([]);
+  const [sellerRequests, setSellerRequests] = useState<SellerRequest[]>([]);
   const [siteConfig, setSiteConfig] = useState<SiteConfig>({ 
     bannerVisible: false, bannerText: '', bannerType: 'info',
-    metaTitle: '', metaDescription: '', ogImage: '', keywords: '', oneSignalAppId: '', oneSignalRestKey: ''
+    metaTitle: '', metaDescription: '', ogImage: '', keywords: '',
+    contactPhone: '', telegramLink: '', whatsappLink: '',
+    oneSignalAppId: '', oneSignalApiKey: ''
   });
   
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'requests' | 'settings' | 'promotes' | 'push'>('orders');
-  const { notify } = useContext(NotificationContext);
-
-  // Mention System State
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'requests' | 'settings' | 'banners' | 'ads'>('orders');
   const [userSearch, setUserSearch] = useState('');
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const { notify, enterShadowMode } = useContext(NotificationContext);
 
-  // Modal States
+  // Form States
   const [showProductModal, setShowProductModal] = useState<Product | null>(null);
-  const [productForm, setProductForm] = useState<Partial<Product>>({
-    name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock',
-    mentionedUserId: '', mentionedUserName: ''
-  });
-  const [personalMsgUser, setPersonalMsgUser] = useState<User | null>(null);
-  const [personalMsgContent, setPersonalMsgContent] = useState({ title: '', message: '' });
-
-  // Broadcaster State
-  const [pushForm, setPushForm] = useState({ title: '', message: '', image: '' });
-  const [sendingPush, setSendingPush] = useState(false);
+  const [productForm, setProductForm] = useState<Partial<Product>>({ name: '', category: '', price: 0, description: '', image: '', stock: 'instock' });
+  const [showAdModal, setShowAdModal] = useState<CustomAd | null>(null);
+  const [adForm, setAdForm] = useState<Partial<CustomAd>>({ imageUrl: '', link: '', text: '', placement: 'home_middle', order: 0 });
+  const [showBannerModal, setShowBannerModal] = useState<HomeBanner | null>(null);
+  const [bannerForm, setBannerForm] = useState<Partial<HomeBanner>>({ imageUrl: '', link: '', order: 0 });
 
   useEffect(() => {
     fetchData();
   }, [activeTab]);
 
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowUserDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Always fetch users if on products tab for mentions
       if (activeTab === 'products') {
+        const pSnap = await getDocs(collection(db, 'products'));
+        setProducts(pSnap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
+      }
+      else if (activeTab === 'users') {
         const uSnap = await getDocs(collection(db, 'users'));
         setUsers(uSnap.docs.map(d => ({ uid: d.id, ...d.data() } as User)));
       }
-
-      if (activeTab === 'settings') {
-        const snap = await getDocs(collection(db, 'site_config'));
-        const config = snap.docs.find(d => d.id === 'global');
-        if (config) setSiteConfig(config.data() as SiteConfig);
-      } else {
-        const qColl = activeTab === 'orders' ? 'orders' : 
-                     activeTab === 'promotes' ? 'promote_requests' :
-                     activeTab === 'products' ? 'products' :
-                     activeTab === 'users' ? 'users' :
-                     activeTab === 'requests' ? 'sell_requests' : 'site_config';
-        
-        const snap = await getDocs(collection(db, qColl));
-        const data = snap.docs.map(d => ({ 
-          id: d.id, 
-          uid: d.id, 
-          ...d.data() 
-        })).sort((a: any, b: any) => {
-          const timeA = a.timestamp?.seconds || a.createdAt?.seconds || 0;
-          const timeB = b.timestamp?.seconds || b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-        
-        if (activeTab === 'orders') setOrders(data as any as Order[]);
-        if (activeTab === 'promotes') setPromoteRequests(data as any as PromoteRequest[]);
-        if (activeTab === 'products') setProducts(data as any as Product[]);
-        if (activeTab === 'users') setUsers(data as any as User[]);
-        if (activeTab === 'requests') setSellRequests(data as any as SellRequest[]);
+      else if (activeTab === 'banners') {
+        const bSnap = await getDocs(collection(db, 'banners'));
+        const bannersData = bSnap.docs.map(d => ({ id: d.id, ...d.data() } as HomeBanner));
+        setBanners(bannersData.sort((a, b) => (a.order || 0) - (b.order || 0)));
+      }
+      else if (activeTab === 'ads') {
+        const aSnap = await getDocs(collection(db, 'ads'));
+        const adsData = aSnap.docs.map(d => ({ id: d.id, ...d.data() } as CustomAd));
+        setAds(adsData.sort((a, b) => (a.order || 0) - (b.order || 0)));
+      }
+      else if (activeTab === 'requests') {
+        const rSnap = await getDocs(query(collection(db, 'seller_requests'), orderBy('timestamp', 'desc')));
+        setSellerRequests(rSnap.docs.map(d => ({ id: d.id, ...d.data() } as SellerRequest)));
+      }
+      else if (activeTab === 'orders') {
+        const oSnap = await getDocs(query(collection(db, 'orders'), orderBy('timestamp', 'desc')));
+        const allOrders = oSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+        setOrders(allOrders.filter(o => !o.sellerId || o.sellerId === auth.currentUser?.uid));
+      }
+      else if (activeTab === 'settings') {
+        const sSnap = await getDocs(collection(db, 'site_config'));
+        const globalConfig = sSnap.docs.find(d => d.id === 'global');
+        if (globalConfig) setSiteConfig(globalConfig.data() as SiteConfig);
       }
     } catch (err: any) { 
       console.error("Admin Fetch Error:", err);
-      notify('Failed to load data.', 'error'); 
-    } 
-    finally { setLoading(false); }
+      notify(`Sync Failed: Check Permissions.`, 'error'); 
+    } finally { setLoading(false); }
   };
 
-  const handleStatusChange = async (id: string, coll: string, status: string) => {
+  const handleUpdateConfig = async () => {
     try {
-      await updateDoc(doc(db, coll, id), { status });
-      notify(`Status Updated to ${status}`, 'success');
-      fetchData();
+      await updateDoc(doc(db, 'site_config', 'global'), siteConfig as any);
+      notify('গ্লোবাল সেটিংস আপডেট করা হয়েছে!', 'success');
     } catch (e: any) { notify(e.message, 'error'); }
   };
 
-  const deleteProduct = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
-    try {
-      await deleteDoc(doc(db, 'products', id));
-      notify('Product Removed', 'success');
-      fetchData();
-    } catch (e: any) { notify(e.message, 'error'); }
-  };
-
-  const handleProductSubmit = async (e: React.FormEvent) => {
+  const saveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      let productId = '';
-      if (showProductModal?.id) {
-        productId = showProductModal.id;
-        await updateDoc(doc(db, 'products', productId), productForm);
-        notify('Product Updated', 'success');
+      if (showBannerModal?.id) {
+        await updateDoc(doc(db, 'banners', showBannerModal.id), bannerForm);
+        notify('ব্যানার আপডেট করা হয়েছে!', 'success');
       } else {
-        const docRef = await addDoc(collection(db, 'products'), { ...productForm, views: 0, timestamp: serverTimestamp() });
-        productId = docRef.id;
-        notify('Product Added', 'success');
+        await addDoc(collection(db, 'banners'), bannerForm);
+        notify('নতুন ব্যানার যুক্ত করা হয়েছে!', 'success');
       }
+      setShowBannerModal(null);
+      fetchData();
+    } catch (e: any) { notify(e.message, 'error'); }
+  };
 
-      // Automatically notify mentioned user
-      if (productForm.mentionedUserId) {
-        await addDoc(collection(db, 'users', productForm.mentionedUserId, 'notifications'), {
-          title: 'You have been mentioned!',
-          message: `Deep Shop mentioned you on: ${productForm.name}. You can now promote this product from your profile.`,
-          image: productForm.image,
-          isRead: false,
-          timestamp: serverTimestamp()
-        });
+  const saveAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (showAdModal?.id) {
+        await updateDoc(doc(db, 'ads', showAdModal.id), adForm);
+        notify('বিজ্ঞাপন আপডেট করা হয়েছে!', 'success');
+      } else {
+        await addDoc(collection(db, 'ads'), adForm);
+        notify('নতুন বিজ্ঞাপন যুক্ত করা হয়েছে!', 'success');
       }
+      setShowAdModal(null);
+      fetchData();
+    } catch (e: any) { notify(e.message, 'error'); }
+  };
 
+  const deleteItem = async (id: string, coll: string) => {
+    if (!confirm('আপনি কি এটি মুছে ফেলতে চান?')) return;
+    try {
+      await deleteDoc(doc(db, coll, id));
+      notify('সফলভাবে মুছে ফেলা হয়েছে।', 'success');
+      fetchData();
+    } catch (e: any) { notify(e.message, 'error'); }
+  };
+
+  const saveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (showProductModal?.id) {
+        await updateDoc(doc(db, 'products', showProductModal.id), productForm);
+      } else {
+        await addDoc(collection(db, 'products'), { ...productForm, timestamp: serverTimestamp(), views: 0 });
+      }
+      notify('প্রোডাক্ট সফলভাবে সিনক্রোনাইজ হয়েছে।', 'success');
       setShowProductModal(null);
-      setProductForm({ name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock', mentionedUserId: '', mentionedUserName: '' });
       fetchData();
     } catch (e: any) { notify(e.message, 'error'); }
   };
 
-  const handleUserSearch = (val: string) => {
-    setUserSearch(val);
-    
-    // Check if input contains '@' anywhere to trigger popup
-    if (val.includes('@')) {
-      const parts = val.split('@');
-      const queryStr = parts[parts.length - 1].toLowerCase();
-      
-      const filtered = queryStr.length > 0
-        ? users.filter(u => 
-            u.name?.toLowerCase().includes(queryStr) || 
-            u.email?.toLowerCase().includes(queryStr)
-          ).slice(0, 8)
-        : users.slice(0, 8); // Show first 8 users if only '@' is present
-      
-      setFilteredUsers(filtered);
-      setShowUserDropdown(true);
-    } else {
-      setShowUserDropdown(false);
-    }
-  };
-
-  const selectMentionUser = (u: User) => {
-    setProductForm({
-      ...productForm,
-      mentionedUserId: u.uid,
-      mentionedUserName: u.name
-    });
-    setUserSearch(`@${u.name}`);
-    setShowUserDropdown(false);
-  };
-
-  const sendPersonalMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!personalMsgUser || !personalMsgContent.title) return;
+  const approveSeller = async (req: SellerRequest) => {
     try {
-      await addDoc(collection(db, 'users', personalMsgUser.uid, 'notifications'), {
-        ...personalMsgContent,
-        isRead: false,
-        timestamp: serverTimestamp()
-      });
-      notify(`Message sent to ${personalMsgUser.name}`, 'success');
-      setPersonalMsgUser(null);
-      setPersonalMsgContent({ title: '', message: '' });
-    } catch (e: any) { notify(e.message, 'error'); }
-  };
-
-  const updateRank = async (uid: string, rank: SellerRank) => {
-    try {
-      await updateDoc(doc(db, 'users', uid), { rankOverride: rank });
-      notify(`Rank updated to ${rank}`, 'success');
+      await updateDoc(doc(db, 'users', req.userId), { isSellerApproved: true });
+      await updateDoc(doc(db, 'seller_requests', req.id), { status: 'approved' });
+      notify('সেলার অনুমতি দেওয়া হয়েছে!', 'success');
       fetchData();
     } catch (e: any) { notify(e.message, 'error'); }
   };
 
-  const toggleBan = async (u: User) => {
+  const rejectSeller = async (req: SellerRequest) => {
     try {
-      await updateDoc(doc(db, 'users', u.uid), { isBanned: !u.isBanned });
-      notify(`User ${!u.isBanned ? 'Banned' : 'Unbanned'}`, 'success');
+      await updateDoc(doc(db, 'seller_requests', req.id), { status: 'rejected' });
+      notify('সেলার অনুরোধ বাতিল করা হয়েছে।', 'info');
       fetchData();
     } catch (e: any) { notify(e.message, 'error'); }
   };
 
-  const sendGlobalPush = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pushForm.title || !pushForm.message) return notify('Required fields missing', 'error');
-    setSendingPush(true);
-    try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      for (const uDoc of usersSnap.docs) {
-        await addDoc(collection(db, 'users', uDoc.id, 'notifications'), {
-          ...pushForm,
-          isRead: false,
-          timestamp: serverTimestamp()
-        });
-      }
-
-      if (siteConfig.oneSignalAppId && siteConfig.oneSignalRestKey) {
-        await fetch('https://onesignal.com/api/v1/notifications', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Authorization': `Basic ${siteConfig.oneSignalRestKey}`
-          },
-          body: JSON.stringify({
-            app_id: siteConfig.oneSignalAppId,
-            included_segments: ["All"],
-            headings: { en: pushForm.title },
-            contents: { en: pushForm.message },
-            big_picture: pushForm.image || undefined
-          })
-        });
-      }
-
-      notify('Notification Sent', 'success');
-      setPushForm({ title: '', message: '', image: '' });
-    } catch (e: any) { notify(e.message, 'error'); }
-    finally { setSendingPush(false); }
-  };
+  const filteredUsers = users.filter(u => 
+    u.name?.toLowerCase().includes(userSearch.toLowerCase()) || 
+    u.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.phone?.includes(userSearch)
+  );
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-12 min-h-screen pb-40">
+    <div className="max-w-7xl mx-auto p-4 md:p-12 min-h-screen pb-40 animate-fade-in">
       <div className="flex flex-col lg:flex-row items-center justify-between gap-6 mb-12">
-        <h1 className="text-3xl font-black uppercase tracking-tight">Admin Dashboard</h1>
-        <div className="flex flex-wrap p-1 bg-slate-100 dark:bg-white/5 rounded-2xl gap-1 overflow-x-auto no-scrollbar max-w-full">
-          {['orders', 'promotes', 'products', 'users', 'requests', 'settings', 'push'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-5 h-10 rounded-xl font-bold text-[9px] uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-primary text-white shadow-xl' : 'text-slate-500 hover:text-primary'}`}>{tab}</button>
+        <div>
+          <h1 className="text-3xl font-black uppercase tracking-tight brand-font">DEEP <span className="text-primary">ADMIN</span></h1>
+          <p className="text-[11px] font-bold text-slate-400 mt-1">অফিসিয়াল কন্ট্রোল প্যানেল</p>
+        </div>
+        <div className="flex flex-wrap p-1.5 bg-slate-100 dark:bg-white/5 rounded-3xl gap-1 overflow-x-auto no-scrollbar">
+          {['orders', 'products', 'banners', 'ads', 'users', 'requests', 'settings'].map(tab => (
+            <button 
+              key={tab} 
+              onClick={() => setActiveTab(tab as any)} 
+              className={`px-5 h-11 rounded-2xl font-bold text-[11px] transition-all ${activeTab === tab ? 'bg-primary text-white shadow-xl' : 'text-slate-500 hover:bg-white dark:hover:bg-white/10'}`}
+            >
+              {tab === 'orders' ? 'অর্ডার' : tab === 'products' ? 'পণ্য' : tab === 'banners' ? 'ব্যানার' : tab === 'ads' ? 'বিজ্ঞাপন' : tab === 'users' ? 'ইউজার' : tab === 'requests' ? 'অনুরোধ' : 'সেটিংস'}
+            </button>
           ))}
         </div>
       </div>
 
       {loading ? <Loader /> : (
         <div className="animate-fade-in">
-          
           {activeTab === 'orders' && (
             <div className="space-y-4">
-              {orders.length > 0 ? orders.map(o => (
-                <div key={o.id} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm flex flex-col md:flex-row justify-between gap-8">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-4">
-                      <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-lg uppercase">#{o.id.substring(0,8)}</span>
-                      <h4 className="font-bold text-xs uppercase truncate">{o.userInfo?.userName || 'Customer'}</h4>
+               <h2 className="text-xl font-bold mb-6">অর্ডার তালিকা</h2>
+               {orders.map(o => (
+                 <div key={o.id} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 flex flex-col gap-6 shadow-sm">
+                    <div className="flex justify-between items-start">
+                       <div>
+                          <span className="text-[10px] font-bold text-primary uppercase">আইডি #{o.id?.substring(0,8).toUpperCase()}</span>
+                          <h4 className="font-bold text-sm mt-1">{o.userInfo?.userName || 'অজানা ইউজার'}</h4>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-lg font-bold">৳{o.totalAmount?.toLocaleString()}</p>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">{o.status}</span>
+                       </div>
                     </div>
-                    <div className="space-y-2">
-                       {o.products?.map((p, i) => (
-                         <div key={i} className="flex items-center gap-4 text-[11px] font-bold">
-                           <img src={p.image} className="w-8 h-8 rounded-lg bg-slate-50 object-contain" alt="" />
-                           <span className="text-slate-500">{p.quantity}x</span>
-                           <span className="truncate">{p.name}</span>
-                         </div>
-                       ))}
+                    <div className="space-y-1">
+                       {o.products?.map((p, i) => <p key={i} className="text-[11px] font-bold text-slate-500 uppercase">{p.name} x{p.quantity}</p>)}
                     </div>
-                    <p className="mt-4 text-[11px] font-black uppercase tracking-widest">Total: <span className="text-primary">৳{o.totalAmount?.toLocaleString()}</span></p>
-                  </div>
-                  <div className="flex flex-col justify-between items-end gap-4 shrink-0">
-                    <select 
-                      value={o.status} 
-                      onChange={(e) => handleStatusChange(o.id, 'orders', e.target.value)}
-                      className="w-full md:w-48 h-12 bg-slate-50 dark:bg-black/40 rounded-xl px-5 text-[10px] font-black uppercase outline-none border border-transparent focus:border-primary transition-all"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="processing">Processing</option>
-                      <option value="packaging">Packaging</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="delivered">Delivered</option>
-                      <option value="canceled">Canceled</option>
+                    <select value={o.status || 'pending'} onChange={async (e) => { await updateDoc(doc(db, 'orders', o.id), { status: e.target.value }); fetchData(); }} className="w-full h-12 bg-slate-50 dark:bg-black rounded-xl px-5 text-[11px] font-bold outline-none border border-slate-200 dark:border-white/5">
+                      {['pending', 'processing', 'packaging', 'shipped', 'delivered', 'canceled'].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
-                    <button onClick={() => window.open(`tel:${o.userInfo?.phone}`)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary">Call Customer</button>
-                  </div>
-                </div>
-              )) : (
-                <p className="text-center py-40 opacity-20 font-black uppercase tracking-[0.4em]">No Orders Found</p>
-              )}
+                 </div>
+               ))}
+               {orders.length === 0 && <div className="text-center py-20 opacity-20 font-bold uppercase">কোন অর্ডার পাওয়া যায়নি</div>}
             </div>
           )}
 
           {activeTab === 'products' && (
             <div className="space-y-8">
-              <button 
-                onClick={() => { 
-                  setProductForm({ name: '', category: 'mobile', price: 0, description: '', image: '', stock: 'instock', mentionedUserId: '', mentionedUserName: '' }); 
-                  setUserSearch('');
-                  setShowProductModal({} as Product); 
-                }} 
-                className="w-full h-14 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20"
-              >
-                Add New Product
-              </button>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {products.length > 0 ? products.map(p => (
-                  <div key={p.id} className="bg-white dark:bg-zinc-900 p-4 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm group">
-                    <div className="aspect-square bg-slate-50 dark:bg-black/40 rounded-2xl p-4 mb-4 relative overflow-hidden">
-                      <img src={p.image} className="w-full h-full object-contain group-hover:scale-110 transition-all" alt={p.name} />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <button onClick={() => { 
-                          setProductForm(p); 
-                          setUserSearch(p.mentionedUserName ? `@${p.mentionedUserName}` : '');
-                          setShowProductModal(p); 
-                        }} className="w-10 h-10 bg-white rounded-xl text-slate-900 flex items-center justify-center"><i className="fas fa-edit"></i></button>
-                        <button onClick={() => deleteProduct(p.id)} className="w-10 h-10 bg-red-500 rounded-xl text-white flex items-center justify-center"><i className="fas fa-trash"></i></button>
+               <button onClick={() => { setProductForm({ name: '', category: '', price: 0, description: '', image: '', stock: 'instock' }); setShowProductModal({} as Product); }} className="w-full h-14 bg-primary text-white rounded-2xl font-bold text-sm shadow-xl">নতুন প্রোডাক্ট যোগ করুন</button>
+               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                  {products.map(p => (
+                    <div key={p.id} className="bg-white dark:bg-zinc-900 p-4 rounded-3xl border border-slate-100 dark:border-white/5 flex flex-col group relative shadow-sm">
+                       <div className="aspect-square bg-slate-50 dark:bg-black/20 rounded-2xl p-4 mb-4">
+                          <img src={p.image?.split(',')[0]} className="w-full h-full object-contain" />
+                       </div>
+                       <h4 className="text-[11px] font-bold truncate">{p.name}</h4>
+                       <p className="text-primary font-bold text-sm">৳{p.price.toLocaleString()}</p>
+                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-3xl">
+                          <button onClick={() => { setProductForm(p); setShowProductModal(p); }} className="w-10 h-10 bg-white rounded-xl text-slate-900"><i className="fas fa-edit"></i></button>
+                          <button onClick={() => deleteItem(p.id, 'products')} className="w-10 h-10 bg-red-500 rounded-xl text-white"><i className="fas fa-trash"></i></button>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'banners' && (
+            <div className="space-y-8">
+               <button onClick={() => { setBannerForm({ imageUrl: '', link: '', order: 0 }); setShowBannerModal({} as any); }} className="w-full h-14 bg-primary text-white rounded-2xl font-bold text-sm shadow-xl">স্লাইডার ব্যানার যোগ করুন</button>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {banners.map(b => (
+                    <div key={b.id} className="bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden border border-slate-100 dark:border-white/5 group relative shadow-md">
+                       <img src={b.imageUrl} className="w-full h-44 object-cover" />
+                       <div className="p-4 flex justify-between items-center bg-slate-50 dark:bg-black/20">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">সিরিয়াল: {b.order}</span>
+                            <span className="text-[10px] font-bold text-primary truncate max-w-[200px]">{b.link || 'নো লিংক'}</span>
+                          </div>
+                          <div className="flex gap-2">
+                             <button onClick={() => { setBannerForm(b); setShowBannerModal(b); }} className="text-slate-500 hover:text-primary"><i className="fas fa-edit"></i></button>
+                             <button onClick={() => deleteItem(b.id, 'banners')} className="text-red-500"><i className="fas fa-trash"></i></button>
+                          </div>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'ads' && (
+            <div className="space-y-8">
+               <button onClick={() => { setAdForm({ imageUrl: '', link: '', text: '', placement: 'home_middle', order: 0 }); setShowAdModal({} as any); }} className="w-full h-14 bg-primary text-white rounded-2xl font-bold text-sm shadow-xl">নতুন বিজ্ঞাপন যোগ করুন</button>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {ads.map(ad => (
+                    <div key={ad.id} className="bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden border border-slate-100 dark:border-white/5 shadow-sm group">
+                      <img src={ad.imageUrl} className="w-full h-32 object-cover" alt="" />
+                      <div className="p-4 bg-slate-50 dark:bg-black/20">
+                        <div className="flex justify-between items-start mb-2">
+                           <p className="text-[10px] font-bold text-primary uppercase">{ad.placement}</p>
+                           <div className="flex gap-2">
+                             <button onClick={() => { setAdForm(ad); setShowAdModal(ad); }} className="text-slate-400 hover:text-primary"><i className="fas fa-edit text-xs"></i></button>
+                             <button onClick={() => deleteItem(ad.id, 'ads')} className="text-red-500"><i className="fas fa-trash text-xs"></i></button>
+                           </div>
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-400 truncate">{ad.text}</p>
                       </div>
                     </div>
-                    <h4 className="font-bold text-[10px] uppercase truncate mb-2">{p.name}</h4>
-                    <p className="text-primary font-black text-xs">৳{p.price?.toLocaleString()}</p>
-                  </div>
-                )) : (
-                  <p className="col-span-full text-center py-40 opacity-20 font-black uppercase tracking-[0.4em]">No Products Available</p>
-                )}
-              </div>
+                  ))}
+               </div>
             </div>
           )}
 
           {activeTab === 'users' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {users.map(u => (
-                <div key={u.uid} className="bg-white dark:bg-zinc-900 p-8 rounded-[40px] border border-slate-100 dark:border-white/5 flex flex-col gap-8 shadow-sm">
-                   <div className="flex items-center gap-4">
-                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-16 h-16 rounded-[22px]" alt="" />
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-bold text-xs uppercase truncate">{u.name}</h4>
-                        <p className="text-[10px] text-slate-400 truncate">{u.email}</p>
-                      </div>
-                   </div>
-                   <div className="space-y-4">
-                      <div>
-                        <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Seller Rank</label>
-                        <select 
-                          value={u.rankOverride || 'bronze'} 
-                          onChange={(e) => updateRank(u.uid, e.target.value as SellerRank)}
-                          className="w-full h-11 bg-slate-50 dark:bg-black/20 rounded-xl px-4 text-[10px] font-black uppercase outline-none"
-                        >
-                          <option value="bronze">Bronze</option>
-                          <option value="silver">Silver</option>
-                          <option value="gold">Gold</option>
-                          <option value="platinum">Platinum</option>
-                          <option value="diamond">Diamond</option>
-                          <option value="hero">Hero</option>
-                          <option value="grand">Grand Master</option>
-                        </select>
-                      </div>
-                      <div className="flex gap-2">
-                         <button onClick={() => setPersonalMsgUser(u)} className="flex-1 h-11 bg-slate-900 text-white dark:bg-white dark:text-black rounded-xl text-[9px] font-black uppercase tracking-widest">Message</button>
-                         <button onClick={() => toggleBan(u)} className={`flex-1 h-11 rounded-xl text-[9px] font-black uppercase tracking-widest ${u.isBanned ? 'bg-success text-white' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
-                           {u.isBanned ? 'Unban' : 'Ban User'}
-                         </button>
-                      </div>
-                   </div>
-                </div>
-              ))}
+            <div className="space-y-8">
+               <div className="relative">
+                 <i className="fas fa-search absolute left-6 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                 <input 
+                  placeholder="নাম, ইমেইল বা ফোন দিয়ে খুঁজুন..." 
+                  className="w-full h-14 pl-14 pr-6 bg-white dark:bg-black/20 rounded-2xl border border-slate-100 dark:border-white/10 font-bold outline-none" 
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                 />
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredUsers.map(u => (
+                  <div key={u.uid} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 flex flex-col gap-6 shadow-sm">
+                     <div className="flex items-center gap-4">
+                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || 'U')}&background=e11d48&color=fff&bold=true`} className="w-14 h-14 rounded-2xl shadow-lg" alt="" />
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-xs uppercase truncate">{u.name || 'নাম নেই'}</h4>
+                          <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                        </div>
+                     </div>
+                     <div className="flex flex-wrap gap-2">
+                        <button onClick={() => enterShadowMode(u.uid)} className="flex-1 h-11 bg-slate-900 text-white dark:bg-white dark:text-black rounded-xl text-[10px] font-bold uppercase transition-all">এক্সেস নিন</button>
+                        <button onClick={async () => { await updateDoc(doc(db, 'users', u.uid), { isSellerApproved: !u.isSellerApproved }); fetchData(); }} className={`flex-1 h-11 rounded-xl text-[10px] font-bold uppercase transition-all ${u.isSellerApproved ? 'bg-green-500 text-white' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}`}>
+                          {u.isSellerApproved ? 'ভেরিফাইড' : 'ভেরিফাই'}
+                        </button>
+                     </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {activeTab === 'requests' && (
             <div className="space-y-4">
-              {sellRequests.length > 0 ? sellRequests.map(req => (
-                <div key={req.id} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
-                  <div className="flex-1">
-                    <h4 className="font-bold text-xs uppercase">{req.deviceName}</h4>
-                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">User: {req.userName} | Asking: ৳{req.expectedPrice?.toLocaleString()}</p>
-                    <div className="mt-4 p-4 bg-slate-50 dark:bg-white/5 rounded-xl text-xs text-slate-600 dark:text-slate-400 leading-relaxed italic">
-                      "{req.details}"
+               <h2 className="text-xl font-bold mb-6">সেলার অনুরোধসমূহ</h2>
+               {sellerRequests.map(req => (
+                 <div key={req.id} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 flex justify-between items-center shadow-sm">
+                    <div>
+                       <h4 className="font-bold text-sm">{req.userName}</h4>
+                       <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase">{req.userPhone}</p>
+                       <span className="text-[10px] font-bold uppercase mt-2 inline-block px-3 py-1 bg-primary/10 text-primary rounded-full">{req.status} Request</span>
                     </div>
-                  </div>
-                  <select 
-                    value={req.status} 
-                    onChange={(e) => handleStatusChange(req.id, 'sell_requests', e.target.value)}
-                    className="w-full md:w-48 h-12 bg-slate-50 dark:bg-black/40 rounded-xl px-5 text-[10px] font-black uppercase outline-none"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </div>
-              )) : (
-                <p className="text-center py-40 opacity-20 font-black uppercase tracking-[0.4em]">No Requests Found</p>
-              )}
+                    {req.status === 'pending' && (
+                      <div className="flex gap-3">
+                        <button onClick={() => approveSeller(req)} className="w-12 h-12 bg-green-500 text-white rounded-xl shadow-lg hover:scale-110 transition-all"><i className="fas fa-check"></i></button>
+                        <button onClick={() => rejectSeller(req)} className="w-12 h-12 bg-red-500 text-white rounded-xl shadow-lg hover:scale-110 transition-all"><i className="fas fa-times"></i></button>
+                      </div>
+                    )}
+                 </div>
+               ))}
             </div>
           )}
 
           {activeTab === 'settings' && (
-            <div className="max-w-4xl mx-auto space-y-12">
-              <div className="bg-white dark:bg-zinc-900 p-10 rounded-[40px] border border-slate-100 dark:border-white/5 shadow-xl space-y-10">
-                 <div className="space-y-6">
-                   <h4 className="font-black text-[11px] uppercase tracking-[0.4em] text-primary">SEO & Branding</h4>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div className="col-span-full">
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Site Title</label>
-                       <input className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.metaTitle} onChange={e => setSiteConfig({...siteConfig, metaTitle: e.target.value})} />
-                     </div>
-                     <div className="col-span-full">
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Meta Description</label>
-                       <textarea className="w-full h-32 bg-slate-50 dark:bg-black/20 p-6 rounded-2xl font-medium outline-none border border-transparent focus:border-primary" value={siteConfig.metaDescription} onChange={e => setSiteConfig({...siteConfig, metaDescription: e.target.value})} />
-                     </div>
-                     <div>
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">OG Image URL</label>
-                       <input className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.ogImage} onChange={e => setSiteConfig({...siteConfig, ogImage: e.target.value})} />
-                     </div>
-                     <div>
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Keywords</label>
-                       <input className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.keywords} onChange={e => setSiteConfig({...siteConfig, keywords: e.target.value})} />
-                     </div>
-                   </div>
-                 </div>
-
-                 <div className="space-y-6">
-                   <h4 className="font-black text-[11px] uppercase tracking-[0.4em] text-primary">OneSignal Settings</h4>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div>
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">OneSignal App ID</label>
-                       <input className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.oneSignalAppId} onChange={e => setSiteConfig({...siteConfig, oneSignalAppId: e.target.value})} />
-                     </div>
-                     <div>
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">OneSignal Rest Key</label>
-                       <input className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.oneSignalRestKey} onChange={e => setSiteConfig({...siteConfig, oneSignalRestKey: e.target.value})} />
-                     </div>
-                   </div>
-                 </div>
-
-                 <div className="space-y-6">
-                   <h4 className="font-black text-[11px] uppercase tracking-[0.4em] text-primary">Announcement Banner</h4>
-                   <div className="flex gap-4 items-center">
-                     <button 
-                       onClick={() => setSiteConfig({...siteConfig, bannerVisible: !siteConfig.bannerVisible})}
-                       className={`w-16 h-8 rounded-full transition-all relative ${siteConfig.bannerVisible ? 'bg-primary' : 'bg-slate-200'}`}
-                     >
-                        <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md ${siteConfig.bannerVisible ? 'left-9' : 'left-1'}`}></div>
-                     </button>
-                     <span className="text-[10px] font-black uppercase text-slate-400">Enable Banner</span>
-                   </div>
-                   {siteConfig.bannerVisible && (
-                     <div className="animate-fade-in">
-                       <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Banner Text</label>
-                       <input className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.bannerText} onChange={e => setSiteConfig({...siteConfig, bannerText: e.target.value})} />
-                     </div>
-                   )}
-                 </div>
-
-                 <button onClick={async () => { await setDoc(doc(db, 'site_config', 'global'), siteConfig); notify('Settings Updated', 'success'); }} className="w-full h-18 bg-slate-900 dark:bg-white text-white dark:text-black rounded-[22px] font-black uppercase text-xs tracking-widest shadow-2xl transition-all active:scale-95">
-                   Save Global Settings
-                 </button>
-              </div>
+            <div className="space-y-12 max-w-4xl mx-auto">
+               <div className="bg-white dark:bg-zinc-900 p-10 rounded-[40px] border border-slate-100 dark:border-white/5 space-y-8 shadow-sm">
+                  <h2 className="text-xl font-bold text-primary">গ্লোবাল সেটিংস</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <label className="text-[11px] font-bold uppercase text-slate-400 pl-2">ব্যানার টেক্সট</label>
+                       <input className="w-full h-12 px-5 bg-slate-50 dark:bg-black rounded-xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.bannerText} onChange={e => setSiteConfig({...siteConfig, bannerText: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[11px] font-bold uppercase text-slate-400 pl-2">সাপোর্ট হোয়াটসঅ্যাপ</label>
+                       <input className="w-full h-12 px-5 bg-slate-50 dark:bg-black rounded-xl font-bold outline-none border border-transparent focus:border-primary" value={siteConfig.whatsappLink} onChange={e => setSiteConfig({...siteConfig, whatsappLink: e.target.value})} />
+                    </div>
+                  </div>
+                  <button onClick={handleUpdateConfig} className="w-full h-14 bg-primary text-white rounded-2xl font-bold text-sm shadow-xl transition-all active:scale-95">আপডেট করুন</button>
+               </div>
             </div>
           )}
-
-          {activeTab === 'push' && (
-            <form onSubmit={sendGlobalPush} className="bg-white dark:bg-zinc-900 p-10 rounded-[40px] border border-slate-100 dark:border-white/5 space-y-8 max-w-2xl mx-auto shadow-2xl">
-               <div className="text-center mb-10">
-                 <div className="w-20 h-20 bg-primary/10 text-primary rounded-[30px] flex items-center justify-center text-3xl mx-auto mb-6"><i className="fas fa-bullhorn"></i></div>
-                 <h3 className="text-2xl font-black uppercase tracking-tight">Push Notification</h3>
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Send message to all users</p>
-               </div>
-               <div className="space-y-4">
-                 <input className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary" placeholder="Title" value={pushForm.title} onChange={e => setPushForm({...pushForm, title: e.target.value})} />
-                 <textarea className="w-full p-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-medium text-sm h-36 border border-transparent focus:border-primary" placeholder="Message content..." value={pushForm.message} onChange={e => setPushForm({...pushForm, message: e.target.value})} />
-                 <input className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary" placeholder="Image URL (Optional)" value={pushForm.image} onChange={e => setPushForm({...pushForm, image: e.target.value})} />
-               </div>
-               <button type="submit" disabled={sendingPush} className="w-full h-16 bg-primary text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 hover:brightness-110 active:scale-95 transition-all">
-                 {sendingPush ? <i className="fas fa-spinner animate-spin"></i> : 'Send Notification'}
-               </button>
-            </form>
-          )}
-
-          {activeTab === 'promotes' && (
-            <div className="space-y-4">
-              {promoteRequests.length > 0 ? promoteRequests.map(req => (
-                <div key={req.id} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm">
-                  <div className="flex-1">
-                    <h4 className="font-bold text-xs uppercase text-primary">{req.productName}</h4>
-                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">User: {req.userName} | Plan: {req.plan} | Status: {req.status}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    {req.status === 'pending' && (
-                      <>
-                        <button 
-                          onClick={async () => {
-                            await updateDoc(doc(db, 'promote_requests', req.id), { status: 'approved' });
-                            await updateDoc(doc(db, 'products', req.productId), { isPromoted: true });
-                            notify('Promotion Approved!', 'success');
-                            fetchData();
-                          }}
-                          className="px-6 h-11 bg-success text-white rounded-xl text-[9px] font-black uppercase tracking-widest"
-                        >Approve</button>
-                        <button 
-                          onClick={() => handleStatusChange(req.id, 'promote_requests', 'rejected')}
-                          className="px-6 h-11 bg-red-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest"
-                        >Reject</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )) : (
-                <p className="text-center py-40 opacity-20 font-black uppercase tracking-[0.4em]">No Promote Requests</p>
-              )}
-            </div>
-          )}
-
         </div>
       )}
 
-      {/* Message Modal */}
-      {personalMsgUser && (
-        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in">
-          <form onSubmit={sendPersonalMessage} className="w-full max-w-md bg-white dark:bg-zinc-900 p-10 rounded-[40px] shadow-2xl space-y-8">
-            <h3 className="text-xl font-black uppercase text-center">Message to {personalMsgUser.name}</h3>
+      {/* Banner Modal */}
+      {showBannerModal && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
+          <form onSubmit={saveBanner} className="w-full max-w-md bg-white dark:bg-zinc-900 p-10 rounded-[40px] space-y-6 shadow-2xl">
+            <h2 className="text-xl font-bold mb-6 text-center">ব্যানার সেটিংস</h2>
             <div className="space-y-4">
-              <input required className="w-full h-14 bg-slate-50 dark:bg-black/20 px-6 rounded-2xl outline-none font-bold border border-transparent focus:border-primary" placeholder="Subject" value={personalMsgContent.title} onChange={e => setPersonalMsgContent({...personalMsgContent, title: e.target.value})} />
-              <textarea required className="w-full p-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none h-32 font-medium border border-transparent focus:border-primary" placeholder="Message body..." value={personalMsgContent.message} onChange={e => setPersonalMsgContent({...personalMsgContent, message: e.target.value})} />
+              <input required placeholder="ছবির লিংক (URL)" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={bannerForm.imageUrl} onChange={e => setBannerForm({...bannerForm, imageUrl: e.target.value})} />
+              <input placeholder="টার্গেট লিংক (ঐচ্ছিক)" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={bannerForm.link} onChange={e => setBannerForm({...bannerForm, link: e.target.value})} />
+              <input type="number" placeholder="অর্ডার সিরিয়াল (০, ১, ২...)" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={bannerForm.order} onChange={e => setBannerForm({...bannerForm, order: Number(e.target.value)})} />
             </div>
-            <div className="flex gap-4">
-              <button type="button" onClick={() => setPersonalMsgUser(null)} className="flex-1 h-14 border border-slate-200 dark:border-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
-              <button type="submit" className="flex-[2] h-14 bg-primary text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20">Send</button>
+            <div className="flex gap-3 pt-4">
+               <button type="button" onClick={() => setShowBannerModal(null)} className="flex-1 h-14 border rounded-2xl text-[12px] font-bold">বাতিল</button>
+               <button type="submit" className="flex-[2] h-14 bg-primary text-white rounded-2xl text-[12px] font-bold">সেভ করুন</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Ad Modal */}
+      {showAdModal && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
+          <form onSubmit={saveAd} className="w-full max-w-md bg-white dark:bg-zinc-900 p-10 rounded-[40px] space-y-6 shadow-2xl">
+            <h2 className="text-xl font-bold mb-6 text-center">বিজ্ঞাপন সেটিংস</h2>
+            <div className="space-y-4">
+              <input required placeholder="ছবির লিংক" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={adForm.imageUrl} onChange={e => setAdForm({...adForm, imageUrl: e.target.value})} />
+              <input placeholder="বিজ্ঞাপন টেক্সট" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={adForm.text} onChange={e => setAdForm({...adForm, text: e.target.value})} />
+              <select className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={adForm.placement} onChange={e => setAdForm({...adForm, placement: e.target.value as any})}>
+                <option value="home_top">Home Top</option>
+                <option value="home_middle">Home Middle</option>
+                <option value="home_bottom">Home Bottom</option>
+              </select>
+              <input type="number" placeholder="সিরিয়াল" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl outline-none font-bold" value={adForm.order} onChange={e => setAdForm({...adForm, order: Number(e.target.value)})} />
+            </div>
+            <div className="flex gap-3 pt-4">
+               <button type="button" onClick={() => setShowAdModal(null)} className="flex-1 h-14 border rounded-2xl text-[12px] font-bold">বাতিল</button>
+               <button type="submit" className="flex-[2] h-14 bg-primary text-white rounded-2xl text-[12px] font-bold">সেভ করুন</button>
             </div>
           </form>
         </div>
@@ -544,95 +395,19 @@ const Admin: React.FC = () => {
 
       {/* Product Modal */}
       {showProductModal && (
-        <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
-          <form onSubmit={handleProductSubmit} className="w-full max-w-2xl bg-white dark:bg-zinc-900 p-10 rounded-[40px] shadow-2xl border border-slate-100 dark:border-white/10 space-y-6 overflow-y-auto max-h-[90vh] no-scrollbar">
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-8">Product Manager</h2>
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in overflow-y-auto">
+          <form onSubmit={saveProduct} className="w-full max-w-2xl bg-white dark:bg-zinc-900 p-10 rounded-[40px] space-y-6 my-10 shadow-2xl">
+            <h2 className="text-2xl font-black uppercase mb-8 brand-font">PRODUCT <span className="text-primary">SYNC</span></h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="col-span-full">
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Product Name</label>
-                <input required className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-bold outline-none border border-transparent focus:border-primary" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} placeholder="iPhone 15 Pro Max" />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Category</label>
-                <select className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-black uppercase text-[10px] outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value as any})}>
-                  <option value="mobile">Mobiles</option>
-                  <option value="laptop">Laptops</option>
-                  <option value="clothes">Clothes</option>
-                  <option value="accessories">Accessories</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Price (৳)</label>
-                <input required type="number" className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-black text-primary outline-none" value={productForm.price} onChange={e => setProductForm({...productForm, price: Number(e.target.value)})} />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Availability</label>
-                <select className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-black uppercase text-[10px] outline-none" value={productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})}>
-                  <option value="instock">In Stock</option>
-                  <option value="outofstock">Out of Stock</option>
-                </select>
-              </div>
-              
-              {/* Mention User Section (Refined Popup) */}
-              <div className="col-span-full relative" ref={dropdownRef}>
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Mention User (Type @ to search)</label>
-                <div className="relative">
-                  <input 
-                    className="w-full h-12 bg-slate-50 dark:bg-black/20 px-5 rounded-xl font-bold outline-none border border-transparent focus:border-primary transition-all" 
-                    value={userSearch} 
-                    onChange={e => handleUserSearch(e.target.value)} 
-                    placeholder="@name or search user..." 
-                  />
-                </div>
-                
-                {showUserDropdown && (
-                  <div className="absolute top-full left-0 right-0 z-[210] mt-1 bg-white dark:bg-zinc-800 border border-slate-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-fade-in max-w-xs ring-1 ring-black/5">
-                    <div className="p-2 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5">
-                        <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Mention User</span>
-                    </div>
-                    <div className="max-h-60 overflow-y-auto no-scrollbar">
-                      {filteredUsers.length > 0 ? filteredUsers.map(u => (
-                        <button
-                          key={u.uid}
-                          type="button"
-                          onClick={() => selectMentionUser(u)}
-                          className="w-full flex items-center gap-3 p-3 hover:bg-primary hover:text-white group transition-colors border-b last:border-0 border-slate-100 dark:border-white/5"
-                        >
-                          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=e11d48&color=fff&bold=true`} className="w-7 h-7 rounded-lg shrink-0" />
-                          <div className="text-left min-w-0">
-                            <p className="text-[10px] font-black uppercase truncate">{u.name}</p>
-                            <p className="text-[8px] opacity-60 truncate group-hover:text-white/80">{u.email}</p>
-                          </div>
-                        </button>
-                      )) : (
-                        <div className="p-4 text-center">
-                          <p className="text-[8px] font-black uppercase text-slate-300">No matches found</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {productForm.mentionedUserId && !showUserDropdown && (
-                  <div className="mt-2 flex items-center gap-2 bg-primary/5 border border-primary/20 px-4 py-2 rounded-xl w-max">
-                    <span className="text-[8px] font-black uppercase text-primary tracking-widest">Mentioned: {productForm.mentionedUserName}</span>
-                    <button type="button" onClick={() => { setProductForm({...productForm, mentionedUserId: '', mentionedUserName: ''}); setUserSearch(''); }} className="text-primary hover:text-red-600 ml-2 transition-colors"><i className="fas fa-times-circle text-[12px]"></i></button>
-                  </div>
-                )}
-              </div>
-
-              <div className="col-span-full">
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Product Image URL</label>
-                <input required className="w-full h-12 bg-slate-50 dark:bg-black/20 px-4 rounded-xl font-bold outline-none border border-transparent focus:border-primary" value={productForm.image} onChange={e => setProductForm({...productForm, image: e.target.value})} placeholder="https://..." />
-              </div>
-              <div className="col-span-full">
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block">Description</label>
-                <textarea className="w-full p-4 bg-slate-50 dark:bg-black/20 rounded-xl font-medium text-xs h-32 outline-none border border-transparent focus:border-primary" value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} />
-              </div>
+              <input required placeholder="নাম" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl font-bold outline-none" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} />
+              <input required placeholder="ক্যাটাগরি" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl font-bold outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})} />
+              <input required type="number" placeholder="দাম" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl font-bold text-primary outline-none" value={productForm.price} onChange={e => setProductForm({...productForm, price: Number(e.target.value)})} />
+              <input required placeholder="ছবির লিংক" className="w-full h-14 px-6 bg-slate-50 dark:bg-black rounded-2xl font-bold outline-none" value={productForm.image} onChange={e => setProductForm({...productForm, image: e.target.value})} />
+              <textarea placeholder="বিস্তারিত" className="col-span-full w-full p-6 bg-slate-50 dark:bg-black rounded-2xl h-32 outline-none font-medium text-sm" value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} />
             </div>
-            <div className="flex gap-4 pt-6">
-              <button type="button" onClick={() => setShowProductModal(null)} className="flex-1 h-14 border border-slate-100 dark:border-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">Cancel</button>
-              <button type="submit" className="flex-[2] h-14 bg-slate-900 dark:bg-white text-white dark:text-black rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-black/20 active:scale-95 transition-all">Save Product</button>
+            <div className="flex gap-4">
+              <button type="button" onClick={() => setShowProductModal(null)} className="flex-1 h-14 border rounded-2xl font-bold text-[12px]">বাতিল</button>
+              <button type="submit" className="flex-[2] h-14 bg-primary text-white rounded-2xl font-bold text-[12px]">কনফার্ম করুন</button>
             </div>
           </form>
         </div>
