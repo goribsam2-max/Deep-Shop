@@ -1,6 +1,5 @@
 
-
-import React from 'react';
+import React, { useEffect } from 'react';
 
 interface NotificationProps {
   message: string;
@@ -9,27 +8,20 @@ interface NotificationProps {
 }
 
 const Notification: React.FC<NotificationProps> = ({ message, type, onClose }) => {
-  const bgColor = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-accent';
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgColor = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-primary' : 'bg-slate-900';
   const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-fade-in bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm glass rounded-ios-lg p-8 shadow-2xl animate-slide-up text-center">
-        <div className={`w-20 h-20 ${bgColor} text-white rounded-full flex items-center justify-center text-4xl mx-auto mb-6 shadow-lg`}>
-          <i className={`fas ${icon}`}></i>
-        </div>
-        <h3 className="text-xl font-black mb-2 uppercase tracking-tight">
-          {type === 'error' ? 'Oops!' : type === 'success' ? 'Success' : 'Notice'}
-        </h3>
-        <p className="text-slate-600 dark:text-slate-400 mb-8 leading-relaxed">
-          {message}
-        </p>
-        <button 
-          onClick={onClose}
-          className="w-full h-14 bg-slate-900 dark:bg-white text-white dark:text-black rounded-ios-lg font-bold shadow-xl hover:scale-105 active:scale-95 transition-all"
-        >
-          Close
-        </button>
+    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[300] w-max max-w-[90vw] animate-slide-up">
+      <div className={`${bgColor} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10`}>
+        <i className={`fas ${icon} text-lg`}></i>
+        <p className="text-[11px] font-black uppercase tracking-widest">{message}</p>
+        <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100"><i className="fas fa-times"></i></button>
       </div>
     </div>
   );
