@@ -1,13 +1,13 @@
 
-
 import React, { useState, useEffect, useContext } from 'react';
 import { db, auth } from '../services/firebase';
-import { collection, doc, getDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { NotificationContext } from '../App';
-import { User, Category } from '../types';
+import { User } from '../types';
 import Loader from '../components/Loader';
 import { sendTelegramNotification } from '../services/telegram';
+import { PRODUCT_CATEGORIES } from '../constants';
 
 const AddProduct: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -15,15 +15,6 @@ const AddProduct: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { notify } = useContext(NotificationContext);
-
-  // Hardcoded Bengali Categories as requested
-  const productCategories = [
-    'মোবাইল',
-    'ল্যাপটপ',
-    'পোশাক',
-    'এক্সেসরিজ',
-    'ডিজিটাল প্রোডাক্ট'
-  ];
 
   const [form, setForm] = useState({
     name: '',
@@ -116,31 +107,33 @@ const AddProduct: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-12 pb-40 animate-fade-in">
       <div className="mb-12 text-center md:text-left">
-        <h1 className="text-3xl font-black uppercase mb-2 brand-font italic">DEEP <span className="text-primary">PUBLISH</span></h1>
+        <h1 className="text-3xl font-black uppercase mb-2 brand-font italic text-slate-900 dark:text-white">DEEP <span className="text-primary">PUBLISH</span></h1>
         <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">আপনার প্রোডাক্টের সব তথ্য দিন</p>
       </div>
       
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-zinc-900 p-10 rounded-[48px] border border-slate-100 dark:border-white/5 space-y-10 shadow-sm">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-zinc-900 p-8 md:p-12 rounded-[48px] border border-slate-100 dark:border-white/5 space-y-10 shadow-xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">প্রোডাক্টের নাম</label>
-              <input required placeholder="মডেল ও নাম দিন" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              <input required placeholder="মডেল ও নাম দিন" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/30 transition-all" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">ছবির লিংক</label>
-              <input required placeholder="https://..." className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm" value={form.image} onChange={e => setForm({...form, image: e.target.value})} />
+              <input required placeholder="https://..." className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/30 transition-all" value={form.image} onChange={e => setForm({...form, image: e.target.value})} />
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase text-slate-400 pl-2">মূল্য (৳)</label>
-                 <input required type="number" placeholder="৳" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-black text-primary outline-none" value={form.price} onChange={e => setForm({...form, price: e.target.value})} />
+                 <input required type="number" placeholder="৳" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl font-black text-primary outline-none border border-transparent focus:border-primary/30 transition-all" value={form.price} onChange={e => setForm({...form, price: e.target.value})} />
                </div>
                <div className="space-y-2">
                  <label className="text-[10px] font-black uppercase text-slate-400 pl-2">ক্যাটাগরি</label>
-                 <select required className="w-full h-14 px-4 bg-slate-50 dark:bg-black/20 rounded-2xl font-black uppercase text-[10px] outline-none" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                 <select required className="w-full h-14 px-4 bg-slate-50 dark:bg-black/40 rounded-2xl font-black uppercase text-[10px] outline-none border border-transparent focus:border-primary/30 transition-all appearance-none cursor-pointer" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
                     <option value="">সিলেক্ট করুন</option>
-                    {productCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    {PRODUCT_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat} className="bg-white dark:bg-zinc-900 text-slate-900 dark:text-white">{cat}</option>
+                    ))}
                  </select>
                </div>
             </div>
@@ -150,34 +143,37 @@ const AddProduct: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-slate-400 pl-2">মেথড</label>
-                <select className="w-full h-14 px-4 bg-slate-50 dark:bg-black/20 rounded-2xl font-black text-[10px] outline-none" value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value as any})}>
+                <select className="w-full h-14 px-4 bg-slate-50 dark:bg-black/40 rounded-2xl font-black text-[10px] outline-none border border-transparent focus:border-primary/30 transition-all cursor-pointer" value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value as any})}>
                   <option value="bkash">বিকাশ</option>
                   <option value="nagad">নগদ</option>
                 </select>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-slate-400 pl-2">পেমেন্ট নম্বর</label>
-                <input required placeholder="নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm" value={form.paymentNumber} onChange={e => setForm({...form, paymentNumber: e.target.value})} />
+                <input required placeholder="নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/30 transition-all" value={form.paymentNumber} onChange={e => setForm({...form, paymentNumber: e.target.value})} />
               </div>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">হোয়াটসঅ্যাপ নম্বর</label>
-              <input required placeholder="যোগাযোগের নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm" value={form.whatsapp} onChange={e => setForm({...form, whatsapp: e.target.value})} />
+              <input required placeholder="যোগাযোগের নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/30 transition-all" value={form.whatsapp} onChange={e => setForm({...form, whatsapp: e.target.value})} />
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">বিস্তারিত</label>
-              <textarea required placeholder="প্রোডাক্ট সম্পর্কে লিখুন..." className="w-full p-6 bg-slate-50 dark:bg-black/20 rounded-2xl h-32 outline-none font-medium text-sm leading-relaxed" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+              <textarea required placeholder="প্রোডাক্ট সম্পর্কে লিখুন..." className="w-full p-6 bg-slate-50 dark:bg-black/40 rounded-2xl h-32 outline-none font-medium text-sm leading-relaxed border border-transparent focus:border-primary/30 transition-all" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
             </div>
           </div>
         </div>
 
-        {/* Centered Stylish Publish Button */}
         <div className="flex justify-center pt-8">
            <button 
              disabled={submitting} 
-             className="w-full md:w-80 h-16 bg-gradient-to-r from-primary via-rose-500 to-primary bg-[length:200%_auto] hover:bg-right transition-all duration-500 text-white rounded-full font-black uppercase text-[12px] tracking-[0.3em] shadow-[0_15px_30px_-5px_rgba(225,29,72,0.4)] active:scale-95"
+             className="w-full md:w-80 h-16 bg-gradient-to-r from-primary via-rose-500 to-primary bg-[length:200%_auto] hover:bg-right transition-all duration-500 text-white rounded-full font-black uppercase text-[12px] tracking-[0.3em] shadow-[0_15px_30px_-5px_rgba(225,29,72,0.4)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
            >
-            {submitting ? 'প্রসেসিং হচ্ছে...' : 'প্রোডাক্ট পাবলিশ করুন'}
+            {submitting ? (
+              <span className="flex items-center justify-center gap-3">
+                <i className="fas fa-spinner animate-spin"></i> প্রসেসিং হচ্ছে...
+              </span>
+            ) : 'প্রোডাক্ট পাবলিশ করুন'}
            </button>
         </div>
       </form>
