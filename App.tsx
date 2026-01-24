@@ -115,6 +115,7 @@ const AppContent: React.FC = () => {
             <Route path="/checkout" element={<Checkout user={user} />} />
             <Route path="/sell-phone" element={<SellPhone user={user} />} />
             <Route path="/add-product" element={<AddProduct />} />
+            <Route path="/edit-product/:productId" element={<AddProduct />} />
             <Route path="/seller/:id" element={<SellerProfile />} />
             <Route path="/auth" element={user ? <Navigate to="/profile" /> : <Auth />} />
             <Route path="/profile" element={user ? <Profile user={user} /> : <Navigate to="/auth" />} />
