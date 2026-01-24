@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from './services/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { User } from './types';
 
@@ -32,12 +32,23 @@ export const NotificationContext = React.createContext<{
   exitShadowMode: () => void;
 }>({ notify: () => {}, enterShadowMode: () => {}, exitShadowMode: () => {} });
 
+const BackButton = () => {
+  const navigate = useNavigate();
+  return (
+    <button 
+      onClick={() => navigate(-1)}
+      className="fixed top-6 left-6 z-[70] w-12 h-12 bg-white dark:bg-zinc-900 shadow-xl rounded-2xl flex items-center justify-center text-slate-800 dark:text-white border border-slate-100 dark:border-white/10 active:scale-90 transition-all"
+    >
+      <i className="fas fa-chevron-left"></i>
+    </button>
+  );
+};
+
 const AppContent: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [adminRef, setAdminRef] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
   const [globalNotify, setGlobalNotify] = useState<{ msg: string, type: 'success' | 'error' | 'info' } | null>(null);
   const location = useLocation();
 
@@ -54,7 +65,7 @@ const AppContent: React.FC = () => {
           }
           setLoading(false);
         }, (error) => {
-          console.error("User Profile Snapshot Error:", error);
+          console.error("User Profile Error:", error);
           setLoading(false);
         });
       } else {
@@ -92,21 +103,28 @@ const AppContent: React.FC = () => {
 
   if (loading) return <Loader fullScreen />;
 
+  const isHome = location.pathname === '/';
   const isAuthPage = location.pathname === '/auth';
 
   return (
     <NotificationContext.Provider value={{ notify, enterShadowMode, exitShadowMode }}>
       <div className="min-h-screen bg-slate-50 dark:bg-black text-slate-900 dark:text-white transition-colors duration-500 overflow-x-hidden">
+        
         {user?.isShadowMode && (
-          <div className="bg-primary text-white text-[9px] font-black uppercase text-center py-2 sticky top-0 z-[100] tracking-widest flex items-center justify-center gap-4">
-            Shadow Mode Active: Viewing as {user.name}
-            <button onClick={exitShadowMode} className="bg-white text-primary px-3 py-1 rounded-full text-[8px]">Exit Link</button>
+          <div className="bg-primary text-white text-[9px] font-black uppercase text-center py-2 sticky top-0 z-[100] flex items-center justify-center gap-4">
+            Shadow Mode Active: {user.name}
+            <button onClick={exitShadowMode} className="bg-white text-primary px-3 py-1 rounded-full text-[8px]">Exit</button>
           </div>
         )}
-        {!isAuthPage && <Navbar user={user} onOpenMenu={() => setMenuOpen(true)} hasUnreadNotify={hasUnread} />}
-        {!isAuthPage && <Sidebar isOpen={menuOpen} onClose={() => setMenuOpen(false)} user={user} />}
+
+        {/* Home Specific Components */}
+        {isHome && <Navbar user={user} onOpenMenu={() => setMenuOpen(true)} />}
+        {isHome && <Sidebar isOpen={menuOpen} onClose={() => setMenuOpen(false)} user={user} />}
         
-        <main className="min-h-[80vh]">
+        {/* Back Button for Non-Home pages */}
+        {!isHome && !isAuthPage && <BackButton />}
+        
+        <main className={`${isHome ? 'min-h-[80vh]' : 'min-h-screen pt-4'}`}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/explore" element={<Explore />} />
@@ -123,7 +141,7 @@ const AppContent: React.FC = () => {
           </Routes>
         </main>
 
-        {!isAuthPage && <BottomNav />}
+        {isHome && <BottomNav />}
         
         {globalNotify && (
           <GlobalNotification 
