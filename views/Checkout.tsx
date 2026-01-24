@@ -72,50 +72,38 @@ const Checkout: React.FC<CheckoutProps> = ({ user }) => {
         verificationType: checkoutMode,
       };
 
-      // Construct Telegram Notification in Bangla
-      let tgMsg = `📦 <b>নতুন অর্ডার এসেছে!</b>\n\n`;
-      tgMsg += `👤 <b>ক্রেতার নাম:</b> ${addressData.fullName}\n`;
-      tgMsg += `📞 <b>ফোন নম্বর:</b> ${addressData.phone}\n`;
+      let tgMsg = `📦 <b>নতুন অর্ডার (DEEP SHOP)</b>\n\n`;
+      tgMsg += `👤 <b>নাম:</b> ${addressData.fullName}\n`;
+      tgMsg += `📞 <b>ফোন:</b> ${addressData.phone}\n`;
       tgMsg += `🏠 <b>ঠিকানা:</b> ${addressData.fullAddress}\n\n`;
       tgMsg += `🛍️ <b>পণ্য:</b> ${primaryItem?.name}\n`;
-      tgMsg += `💰 <b>মোট দাম:</b> ৳${subtotal.toLocaleString()}\n`;
+      tgMsg += `💰 <b>দাম:</b> ৳${subtotal.toLocaleString()}\n`;
+
+      let waMsg = `📦 *নতুন অর্ডার!*\n\n*ক্রেতার নাম:* ${addressData.fullName}\n*ফোন:* ${addressData.phone}\n*ঠিকানা:* ${addressData.fullAddress}\n\n*পণ্য:* ${primaryItem?.name}\n*দাম:* ৳${subtotal}\n\n`;
 
       if (checkoutMode === 'advance') {
         orderData.advancePaid = 300;
         orderData.paymentMethod = paymentMethod;
         orderData.transactionId = transactionId;
-        tgMsg += `💳 <b>পেমেন্ট টাইপ:</b> অগ্রিম (৩০০ টাকা)\n`;
-        tgMsg += `🏦 <b>মেথড:</b> ${paymentMethod === 'bkash' ? 'বিকাশ' : 'নগদ'}\n`;
-        tgMsg += `🆔 <b>ট্রানজেকশন আইডি:</b> ${transactionId}\n`;
+        tgMsg += `💳 <b>পেমেন্ট:</b> ৩০০ অগ্রিম (${paymentMethod})\n🆔 <b>Trx ID:</b> ${transactionId}\n`;
+        waMsg += `*পেমেন্ট:* ৩০০ টাকা অগ্রিম (${paymentMethod})\n*Trx ID:* ${transactionId}`;
       } else {
         orderData.advancePaid = 0;
         orderData.parentInfo = { parentType, parentName, parentPhone };
-        tgMsg += `🛡️ <b>ভেরিফিকেশন টাইপ:</b> এনআইডি (টাকা ছাড়া)\n`;
-        tgMsg += `👨‍👩‍👧 <b>এনআইডি কার:</b> ${parentType === 'Mother' ? 'মায়ের' : 'বাবার'}\n`;
-        tgMsg += `📝 <b>এনআইডি অনুযায়ী নাম:</b> ${parentName}\n`;
-        tgMsg += `📱 <b>অভিভাবকের নম্বর:</b> ${parentPhone}\n`;
+        tgMsg += `🛡️ <b>ভেরিফিকেশন:</b> ${parentType} NID\n👨‍👩‍👦 <b>নাম:</b> ${parentName}\n📱 <b>নম্বর:</b> ${parentPhone}\n`;
+        waMsg += `*ভেরিফিকেশন:* ${parentType === 'Mother' ? 'মায়ের' : 'বাবার'} এনআইডি\n*নাম:* ${parentName}\n*নম্বর:* ${parentPhone}\n\nআমি এনআইডি কার্ডের ছবি পাঠাচ্ছি।`;
       }
 
       const orderRef = await addDoc(collection(db, 'orders'), orderData);
-      tgMsg += `\n🔢 <b>অর্ডার আইডি:</b> #${orderRef.id.substring(0,8).toUpperCase()}`;
+      tgMsg += `\n🔢 <b>আইডি:</b> #${orderRef.id.substring(0,8).toUpperCase()}`;
 
-      // Notify via Telegram (Admin)
       await sendTelegramNotification(tgMsg);
-
-      // Construct WhatsApp Message (Seller/Admin)
-      let waMsg = `📦 নতুন অর্ডার!\n\nনাম: ${addressData.fullName}\nফোন: ${addressData.phone}\nঠিকানা: ${addressData.fullAddress}\n\nপণ্য: ${primaryItem?.name}\nদাম: ৳${subtotal}\n\n`;
-      if (checkoutMode === 'advance') {
-        waMsg += `পেমেন্ট: ৩০০ টাকা অগ্রিম (${paymentMethod})\nট্রানজেকশন আইডি: ${transactionId}`;
-      } else {
-        waMsg += `ভেরিফিকেশন: ${parentType === 'Mother' ? 'মায়ের' : 'বাবার'} এনআইডি\nনাম: ${parentName}\nনম্বর: ${parentPhone}\n\n(আমি এনআইডি কার্ডের ছবি পাঠাচ্ছি)`;
-      }
-
       window.open(`https://wa.me/${sellerWhatsapp.replace(/\+/g, '')}?text=${encodeURIComponent(waMsg)}`, '_blank');
 
       if (sellerId) {
         await addDoc(collection(db, 'users', sellerId, 'notifications'), {
           title: '📦 নতুন অর্ডার!',
-          message: `${addressData.fullName} একটি নতুন অর্ডার করেছেন। বিস্তারিত জানতে আপনার হোয়াটসঅ্যাপ দেখুন।`,
+          message: `${addressData.fullName} একটি নতুন অর্ডার করেছেন।`,
           isRead: false,
           timestamp: serverTimestamp()
         });
@@ -123,7 +111,7 @@ const Checkout: React.FC<CheckoutProps> = ({ user }) => {
 
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('cartUpdated'));
-      notify('অর্ডার সফলভাবে সম্পন্ন হয়েছে!', 'success');
+      notify('অর্ডার সম্পন্ন হয়েছে!', 'success');
       navigate('/profile');
     } catch (e: any) { notify(e.message, 'error'); }
     finally { setLoading(false); }
@@ -135,11 +123,11 @@ const Checkout: React.FC<CheckoutProps> = ({ user }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-8">
           <section className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 shadow-sm">
-            <h2 className="text-[11px] font-black uppercase text-slate-400 mb-6 tracking-widest">০১. আপনার ডেলিভারি তথ্য</h2>
+            <h2 className="text-[11px] font-black uppercase text-slate-400 mb-6 tracking-widest">০১. ডেলিভারি তথ্য</h2>
             <div className="space-y-4">
-               <input placeholder="পুরো নাম" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm" value={addressData.fullName} onChange={e => setAddressData({...addressData, fullName: e.target.value})} />
-               <input placeholder="মোবাইল নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold text-sm" value={addressData.phone} onChange={e => setAddressData({...addressData, phone: e.target.value})} />
-               <textarea placeholder="বিস্তারিত ঠিকানা (গ্রাম, পাড়া, রাস্তা নম্বর, থানা ও জেলা)" className="w-full h-24 p-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-medium text-sm leading-relaxed" value={addressData.fullAddress} onChange={e => setAddressData({...addressData, fullAddress: e.target.value})} />
+               <input placeholder="পুরো নাম" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold" value={addressData.fullName} onChange={e => setAddressData({...addressData, fullName: e.target.value})} />
+               <input placeholder="মোবাইল নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-bold" value={addressData.phone} onChange={e => setAddressData({...addressData, phone: e.target.value})} />
+               <textarea placeholder="বিস্তারিত ঠিকানা" className="w-full h-24 p-6 bg-slate-50 dark:bg-black/20 rounded-2xl outline-none font-medium text-sm leading-relaxed" value={addressData.fullAddress} onChange={e => setAddressData({...addressData, fullAddress: e.target.value})} />
             </div>
           </section>
 
@@ -148,41 +136,38 @@ const Checkout: React.FC<CheckoutProps> = ({ user }) => {
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
                <button onClick={() => setCheckoutMode('advance')} className={`flex-1 p-6 rounded-3xl border-2 transition-all text-left ${checkoutMode === 'advance' ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-white/10 opacity-50'}`}>
                   <p className="font-black text-sm uppercase">৳৩০০ অগ্রিম দিন</p>
-                  <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">ডেলিভারি চার্জ নিশ্চিত করতে</p>
+                  <p className="text-[9px] text-slate-500 mt-1 uppercase font-bold">নিশ্চিত করতে</p>
                </button>
                <button onClick={() => setCheckoutMode('nid')} className={`flex-1 p-6 rounded-3xl border-2 transition-all text-left ${checkoutMode === 'nid' ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-white/10 opacity-50'}`}>
                   <p className="font-black text-sm uppercase">টাকা ছাড়া (এনআইডি)</p>
-                  <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold">মা/বাবার পরিচয়পত্র দিয়ে</p>
+                  <p className="text-[9px] text-slate-500 mt-1 uppercase font-bold">পরিচয়পত্র দিয়ে</p>
                </button>
             </div>
 
-            <div className="animate-fade-in">
-               {checkoutMode === 'advance' ? (
-                 <div className="space-y-6">
-                    <div className="p-6 bg-slate-50 dark:bg-black rounded-2xl border border-slate-100 dark:border-white/5">
-                       <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">নিচের নম্বরে ৩০০ টাকা সেন্ডমানি করুন:</p>
-                       <b className="text-primary text-xl tracking-wider select-all">{paymentNumber}</b>
-                    </div>
-                    <div className="flex gap-4">
-                      <button onClick={() => setPaymentMethod('bkash')} className={`flex-1 h-14 rounded-2xl font-black text-[11px] uppercase border-2 transition-all ${paymentMethod === 'bkash' ? 'border-pink-500 bg-pink-50 text-pink-500' : 'border-slate-100 dark:border-white/5'}`}>বিকাশ</button>
-                      <button onClick={() => setPaymentMethod('nagad')} className={`flex-1 h-14 rounded-2xl font-black text-[11px] uppercase border-2 transition-all ${paymentMethod === 'nagad' ? 'border-orange-500 bg-orange-50 text-orange-500' : 'border-slate-100 dark:border-white/5'}`}>নগদ</button>
-                    </div>
-                    <input placeholder="ট্রানজেকশন আইডি (Trx ID)" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-black text-center text-xl uppercase tracking-widest outline-none border border-primary/20" value={transactionId} onChange={e => setTransactionId(e.target.value)} />
+            {checkoutMode === 'advance' ? (
+              <div className="space-y-6">
+                 <div className="p-6 bg-slate-50 dark:bg-black rounded-2xl border border-slate-100 dark:border-white/5">
+                    <p className="text-xs font-bold text-slate-400 mb-2">সেন্ডমানি করুন:</p>
+                    <b className="text-primary text-xl tracking-wider select-all">{paymentNumber}</b>
                  </div>
-               ) : (
-                 <div className="space-y-6">
-                    <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed">অর্ডার নিশ্চিত করতে আপনার বাবা অথবা মায়ের নাম ও নম্বর দিন। কনফার্ম করার পর উনার এনআইডি কার্ডের ছবি সেলারকে হোয়াটসঅ্যাপে পাঠাতে হবে।</p>
-                    <div className="flex gap-4">
-                      <button onClick={() => setParentType('Father')} className={`flex-1 h-12 rounded-2xl font-black text-[10px] uppercase border-2 transition-all ${parentType === 'Father' ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-white/5'}`}>বাবার এনআইডি</button>
-                      <button onClick={() => setParentType('Mother')} className={`flex-1 h-12 rounded-2xl font-black text-[10px] uppercase border-2 transition-all ${parentType === 'Mother' ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-white/5'}`}>মায়ের এনআইডি</button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <input placeholder="এনআইডি কার্ডের নাম" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-bold outline-none text-sm" value={parentName} onChange={e => setParentName(e.target.value)} />
-                      <input placeholder="অভিভাবকের মোবাইল নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-bold outline-none text-sm" value={parentPhone} onChange={e => setParentPhone(e.target.value)} />
-                    </div>
+                 <div className="flex gap-4">
+                   <button onClick={() => setPaymentMethod('bkash')} className={`flex-1 h-14 rounded-2xl font-black text-[11px] uppercase border-2 transition-all ${paymentMethod === 'bkash' ? 'border-pink-500 bg-pink-50 text-pink-500' : 'border-slate-100 dark:border-white/5'}`}>বিকাশ</button>
+                   <button onClick={() => setPaymentMethod('nagad')} className={`flex-1 h-14 rounded-2xl font-black text-[11px] uppercase border-2 transition-all ${paymentMethod === 'nagad' ? 'border-orange-500 bg-orange-50 text-orange-500' : 'border-slate-100 dark:border-white/5'}`}>নগদ</button>
                  </div>
-               )}
-            </div>
+                 <input placeholder="Transaction ID" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-black text-center text-xl uppercase tracking-widest outline-none border border-primary/20" value={transactionId} onChange={e => setTransactionId(e.target.value)} />
+              </div>
+            ) : (
+              <div className="space-y-6">
+                 <div className="flex gap-4">
+                   <button onClick={() => setParentType('Father')} className={`flex-1 h-12 rounded-2xl font-black text-[10px] uppercase border-2 transition-all ${parentType === 'Father' ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-white/5'}`}>বাবার এনআইডি</button>
+                   <button onClick={() => setParentType('Mother')} className={`flex-1 h-12 rounded-2xl font-black text-[10px] uppercase border-2 transition-all ${parentType === 'Mother' ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-white/5'}`}>মায়ের এনআইডি</button>
+                 </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <input placeholder="এনআইডি অনুযায়ী নাম" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-bold outline-none" value={parentName} onChange={e => setParentName(e.target.value)} />
+                   <input placeholder="অভিভাবকের মোবাইল নম্বর" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/20 rounded-2xl font-bold outline-none" value={parentPhone} onChange={e => setParentPhone(e.target.value)} />
+                 </div>
+              </div>
+            )}
           </section>
         </div>
 
@@ -194,9 +179,6 @@ const Checkout: React.FC<CheckoutProps> = ({ user }) => {
            <button onClick={placeOrder} disabled={loading} className="w-full h-16 bg-primary text-white rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">
              {loading ? <i className="fas fa-spinner animate-spin"></i> : 'অর্ডার কনফার্ম করুন'}
            </button>
-           <p className="text-[9px] text-center mt-6 text-slate-500 uppercase font-bold leading-relaxed">
-             অর্ডার করার সাথে সাথে সব তথ্য আমাদের কন্ট্রোল সেন্টারে জমা হবে।
-           </p>
         </div>
       </div>
     </div>
