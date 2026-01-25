@@ -25,7 +25,7 @@ const AddProduct: React.FC = () => {
     category: '',
     paymentEmail: '',
     whatsapp: '',
-    stock: 'instock'
+    stock: 'instock' as 'instock' | 'outstock'
   });
 
   useEffect(() => {
@@ -35,7 +35,6 @@ const AddProduct: React.FC = () => {
       if (uSnap.exists()) {
         const userData = { uid: uSnap.id, ...uSnap.data() } as User;
         setUser(userData);
-        // Default payment email to user's email if creating new product
         if (!productId) {
           setForm(prev => ({ ...prev, paymentEmail: userData.email }));
         }
@@ -93,7 +92,6 @@ const AddProduct: React.FC = () => {
     
     setSubmitting(true);
     try {
-      // Use user email as fallback if paymentEmail is empty
       const finalPaymentEmail = form.paymentEmail.trim() || user.email;
 
       const payload: any = {
@@ -181,6 +179,26 @@ const AddProduct: React.FC = () => {
             </div>
 
             <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-400 pl-2">স্টক স্ট্যাটাস</label>
+              <div className="flex gap-4">
+                <button 
+                  type="button" 
+                  onClick={() => setForm({...form, stock: 'instock'})}
+                  className={`flex-1 h-12 rounded-xl font-black text-[10px] uppercase border transition-all ${form.stock === 'instock' ? 'bg-green-500 text-white border-green-500 shadow-lg' : 'bg-slate-50 dark:bg-white/5 text-slate-400 border-slate-200'}`}
+                >
+                  <i className="fas fa-check-circle mr-2"></i> In Stock
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setForm({...form, stock: 'outstock'})}
+                  className={`flex-1 h-12 rounded-xl font-black text-[10px] uppercase border transition-all ${form.stock === 'outstock' ? 'bg-red-500 text-white border-red-500 shadow-lg' : 'bg-slate-50 dark:bg-white/5 text-slate-400 border-slate-200'}`}
+                >
+                  <i className="fas fa-times-circle mr-2"></i> Out Stock
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">ছবির ডিরেক্ট লিংক</label>
               <input required placeholder="https://image-link.com/img.jpg" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/20 transition-all" value={form.image} onChange={e => setForm({...form, image: e.target.value})} />
             </div>
@@ -197,7 +215,7 @@ const AddProduct: React.FC = () => {
                   onChange={e => setForm({...form, paymentEmail: e.target.value})} 
                 />
                 <p className="text-[9px] font-bold text-slate-500 leading-relaxed px-1">
-                   এটি আপনার Deep Pay ওয়ালেট ইমেইল। যদি খালি রাখেন তবে আপনার বর্তমান অ্যাকাউন্ট ইমেইলটিই ব্যবহৃত হবে। বিক্রিত পণ্যের টাকা এই ইমেইলে জমা হবে।
+                   এটি আপনার Deep Pay ওয়ালেট ইমেইল। যদি খালি রাখেন তবে আপনার বর্তমান অ্যাকাউন্ট ইমেইলটিই ব্যবহৃত হবে।
                 </p>
               </div>
             </div>
