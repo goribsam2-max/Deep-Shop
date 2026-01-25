@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect, useContext } from 'react';
+
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { db, auth } from '../services/firebase';
 import { collection, doc, getDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -9,17 +10,21 @@ import Loader from '../components/Loader';
 import { sendTelegramNotification } from '../services/telegram';
 import { PRODUCT_CATEGORIES } from '../constants';
 
+const IMGBB_API_KEY = '31505ba1cbfd565b7218c0f8a8421a7e';
+
 const AddProduct: React.FC = () => {
   const { productId } = useParams();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { notify } = useContext(NotificationContext);
 
   const [form, setForm] = useState({
     name: '',
-    image: '',
+    image: '', // Comma separated links
     price: '',
     description: '',
     category: '',
@@ -66,6 +71,51 @@ const AddProduct: React.FC = () => {
     fetchInitialData();
   }, [navigate, productId]);
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('image', files[i]);
+        
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          uploadedUrls.push(data.data.url);
+        } else {
+          notify(`ফাইল ${i + 1} আপলোড ব্যর্থ হয়েছে`, 'error');
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        const currentImages = form.image ? form.image.split(',').filter(l => l.trim() !== '') : [];
+        const newImageList = [...currentImages, ...uploadedUrls].join(',');
+        setForm(prev => ({ ...prev, image: newImageList }));
+        notify(`${uploadedUrls.length}টি ছবি আপলোড সফল!`, 'success');
+      }
+    } catch (error) {
+      notify('ছবি আপলোডে সমস্যা হয়েছে', 'error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeImage = (index: number) => {
+    const currentImages = form.image.split(',').filter(l => l.trim() !== '');
+    currentImages.splice(index, 1);
+    setForm(prev => ({ ...prev, image: currentImages.join(',') }));
+  };
+
   const handleVerificationRequest = async () => {
     if (!user) return;
     setSubmitting(true);
@@ -88,7 +138,7 @@ const AddProduct: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.isSellerApproved && !user?.isAdmin) return notify('আপনার প্রোডাক্ট পাবলিশ করার অনুমতি নেই।', 'error');
-    if (!form.name || !form.price || !form.category || !form.whatsapp) return notify('সব তথ্য সঠিকভাবে দিন।', 'error');
+    if (!form.name || !form.price || !form.category || !form.whatsapp || !form.image) return notify('সব তথ্য ও অন্তত একটি ছবি দিন।', 'error');
     
     setSubmitting(true);
     try {
@@ -124,6 +174,8 @@ const AddProduct: React.FC = () => {
     finally { setSubmitting(false); }
   };
 
+  const imageArray = form.image ? form.image.split(',').filter(l => l.trim() !== '') : [];
+
   if (loading) return <Loader fullScreen />;
 
   if (!user?.isSellerApproved && !user?.isAdmin) {
@@ -156,7 +208,52 @@ const AddProduct: React.FC = () => {
       
       <form onSubmit={handleSubmit} className="bg-white dark:bg-zinc-900 p-8 md:p-12 rounded-[48px] border border-slate-100 dark:border-white/5 space-y-10 shadow-xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-          <div className="space-y-6">
+          <div className="space-y-8">
+            {/* Image Upload Section */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-black uppercase text-slate-400 pl-2 tracking-widest">প্রোডাক্টের ছবি সমূহ</label>
+              
+              <div className="grid grid-cols-3 gap-3">
+                 {imageArray.map((url, idx) => (
+                   <div key={idx} className="aspect-square rounded-2xl bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/5 relative overflow-hidden group">
+                      <img src={url} className="w-full h-full object-cover" alt="" />
+                      <button 
+                        type="button" 
+                        onClick={() => removeImage(idx)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                   </div>
+                 ))}
+                 
+                 <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="aspect-square rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 flex flex-col items-center justify-center gap-2 hover:border-primary/50 transition-all text-slate-400 hover:text-primary active:scale-95"
+                 >
+                    {uploading ? (
+                      <i className="fas fa-spinner animate-spin text-lg"></i>
+                    ) : (
+                      <>
+                        <i className="fas fa-plus text-lg"></i>
+                        <span className="text-[8px] font-black uppercase">সিলেক্ট করুন</span>
+                      </>
+                    )}
+                 </button>
+              </div>
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*" 
+                className="hidden" 
+                ref={fileInputRef} 
+                onChange={handleFileSelect} 
+              />
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center">একাধিক ছবি সিলেক্ট করা যাবে </p>
+            </div>
+
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">প্রোডাক্টের নাম</label>
               <input required placeholder="যেমন: iPhone 15 Pro Max" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/20 transition-all" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
@@ -197,11 +294,6 @@ const AddProduct: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-400 pl-2">ছবির ডিরেক্ট লিংক</label>
-              <input required placeholder="https://image-link.com/img.jpg" className="w-full h-14 px-6 bg-slate-50 dark:bg-black/40 rounded-2xl outline-none font-bold text-sm border border-transparent focus:border-primary/20 transition-all" value={form.image} onChange={e => setForm({...form, image: e.target.value})} />
-            </div>
           </div>
 
           <div className="space-y-6">
@@ -229,15 +321,18 @@ const AddProduct: React.FC = () => {
               <label className="text-[10px] font-black uppercase text-slate-400 pl-2">পণ্য সম্পর্কে কিছু বলুন</label>
               <textarea required placeholder="বিস্তারিত বিবরণ..." className="w-full p-6 bg-slate-50 dark:bg-black/40 rounded-2xl h-32 outline-none font-medium text-sm leading-relaxed border border-transparent focus:border-primary/20 transition-all" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
             </div>
+
+            {/* Hidden field for image links (kept for state management) */}
+            <input type="hidden" value={form.image} />
           </div>
         </div>
 
         <div className="flex justify-center pt-8">
            <button 
-             disabled={submitting} 
+             disabled={submitting || uploading} 
              className="w-full md:w-80 h-16 bg-primary text-white rounded-full font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 disabled:opacity-50 transition-all"
            >
-            {submitting ? 'প্রসেসিং...' : (productId ? 'আপডেট করুন' : 'পাবলিশ করুন')}
+            {submitting ? 'প্রসেসিং...' : uploading ? 'ছবি আপলোড হচ্ছে...' : (productId ? 'আপডেট করুন' : 'পাবলিশ করুন')}
            </button>
         </div>
       </form>
