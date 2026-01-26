@@ -1,218 +1,131 @@
 
-import React, { useState, useEffect, useContext } from 'react';
-import { db, auth } from '../services/firebase';
-import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { User, Order, Notification, OrderStatus } from '../types';
-import Loader from '../components/Loader';
-import Receipt from '../components/Receipt';
+import React from 'react';
+import { auth } from '../services/firebase';
+import { User } from '../types';
+import { Link, useNavigate } from 'react-router-dom';
 import RankBadge from '../components/RankBadge';
-import { Link } from 'react-router-dom';
-import { NotificationContext } from '../App';
 
 const Profile: React.FC<{ user: User }> = ({ user }) => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [sales, setSales] = useState<Order[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orders' | 'sales' | 'notifications'>('orders');
-  const [selectedReceipt, setSelectedReceipt] = useState<Order | null>(null);
-  const { notify } = useContext(NotificationContext);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!user?.uid) return;
-    
-    const unsubOrders = onSnapshot(query(collection(db, 'orders'), where('userInfo.userId', '==', user.uid)), (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Order);
-      setOrders(data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
-    });
+  const menuItems = [
+    { to: '/my-orders', label: 'আমার অর্ডারসমূহ', icon: 'fa-box-open', color: 'text-blue-500' },
+    { to: '/notifications', label: 'নোটিফিকেশন বক্স', icon: 'fa-bell', color: 'text-amber-500' },
+    { to: '/sales', label: 'সেলার প্যানেল (বিক্রয় তথ্য)', icon: 'fa-chart-pie', color: 'text-primary', sellerOnly: true },
+    { to: '/track-order', label: 'অর্ডার ট্র্যাকিং সিস্টেম', icon: 'fa-location-arrow', color: 'text-rose-500' },
+  ];
 
-    const unsubSales = onSnapshot(query(collection(db, 'orders'), where('sellerId', '==', user.uid)), (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Order);
-      setSales(data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
-    });
-
-    const unsubNotif = onSnapshot(query(collection(db, 'users', user.uid, 'notifications')), (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-      setNotifications(data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)));
-      setLoading(false);
-    }, (err) => {
-      console.error(err);
-      setLoading(false);
-    });
-
-    return () => { unsubOrders(); unsubSales(); unsubNotif(); };
-  }, [user?.uid]);
-
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    try {
-      await updateDoc(doc(db, 'orders', orderId), { status });
-      notify(`স্ট্যাটাস পরিবর্তন হয়েছে: ${status.toUpperCase()}`, 'success');
-    } catch (e: any) { notify(e.message, 'error'); }
-  };
-
-  if (loading) return <Loader fullScreen />;
+  const isSeller = user.isSellerApproved || user.isAdmin;
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-12 pb-40 animate-fade-in">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-slate-900 text-white rounded-[40px] md:rounded-[56px] p-8 md:p-16 mb-12 shadow-2xl">
-        <div className="relative z-10 flex flex-col md:flex-row items-center gap-10">
-          <div className="relative">
-            <div className="w-32 h-32 md:w-44 md:h-44 rounded-[40px] border-4 border-white/10 p-1.5 bg-white/5 backdrop-blur-xl">
-               <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=e11d48&color=fff&bold=true&size=512`} className="w-full h-full rounded-[32px] object-cover shadow-2xl" alt="P" />
-            </div>
-            <div className="absolute -bottom-4 -right-4"><RankBadge rank={user?.rankOverride || 'bronze'} size="md" showLabel={false} /></div>
-          </div>
-          
-          <div className="flex-1 text-center md:text-left">
-            <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 mb-4">
-               <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter">{user?.name}</h1>
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 mb-8">{user?.email}</p>
-          </div>
+    <div className="flex-1 flex flex-col animate-fade-in bg-white dark:bg-[#050505]">
+      {/* Header with Back Button */}
+      <div className="px-8 pt-12 pb-8 border-b border-slate-50 dark:border-white/5 bg-white/50 dark:bg-black/50 backdrop-blur-xl">
+        <div className="flex items-center gap-6 mb-10">
+           <button 
+             onClick={() => navigate(-1)} 
+             className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 active:scale-90 transition-all border border-slate-100 dark:border-white/5"
+           >
+             <i className="fas fa-chevron-left"></i>
+           </button>
+           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">পার্সোনাল প্রোফাইল</h2>
+        </div>
 
-          <div className="flex flex-col gap-3">
-             <button onClick={() => auth.signOut()} className="h-12 px-8 bg-white/10 hover:bg-white/20 rounded-2xl text-[9px] font-black uppercase tracking-widest">লগ আউট</button>
-             {user?.isAdmin && !user.isShadowMode && <Link to="/admin" className="h-12 px-8 bg-primary text-white rounded-2xl flex items-center justify-center text-[9px] font-black uppercase tracking-widest">অ্যাডমিন প্যানেল</Link>}
+        <div className="flex items-center gap-6">
+          <div className="w-20 h-20 rounded-[28px] bg-slate-100 dark:bg-white/5 p-1 relative shadow-2xl">
+            <img 
+              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=e11d48&color=fff&bold=true&size=128`} 
+              className="w-full h-full rounded-[24px] object-cover" 
+              alt={user.name} 
+            />
+            <div className="absolute -bottom-1 -right-1">
+               <RankBadge rank={user.rankOverride || 'bronze'} size="sm" showLabel={false} />
+            </div>
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-black uppercase text-slate-900 dark:text-white leading-tight mb-1 truncate brand-font">{user.name}</h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate opacity-60">{user.email}</p>
+            {isSeller && (
+              <span className="inline-block mt-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-[8px] font-black uppercase tracking-widest border border-primary/20 animate-pulse">
+                Verified Seller
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="w-full bg-white dark:bg-zinc-900 rounded-3xl p-1.5 mb-10 overflow-x-auto no-scrollbar border border-slate-100 dark:border-white/5 shadow-sm">
-        <div className="flex gap-1.5">
-          {['orders', 'sales', 'notifications'].map((tab: any) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 h-12 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shrink-0 px-6 ${activeTab === tab ? 'bg-primary text-white shadow-lg' : 'text-slate-400'}`}>
-              {tab === 'sales' ? `বেচাকেনা (${sales.length})` : tab === 'orders' ? 'আমার অর্ডার' : 'নোটিফিকেশন'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="space-y-6">
-        {activeTab === 'sales' && (
-          <div className="space-y-8">
-            {sales.map(o => (
-              <div key={o.id} className="bg-white dark:bg-zinc-900 p-8 md:p-12 rounded-[48px] border border-slate-100 dark:border-white/5 shadow-sm overflow-hidden">
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                    <div className="space-y-6">
-                       <div className="flex items-center gap-5">
-                          <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(o.userInfo?.userName || 'B')}&background=e11d48&color=fff&bold=true`} className="w-16 h-16 rounded-[22px]" alt="U" />
-                          <div>
-                             <h4 className="font-black text-sm uppercase">{o.userInfo?.userName}</h4>
-                             <p className="text-xs font-bold text-slate-400">{o.userInfo?.phone}</p>
-                             <span className="text-[9px] font-black text-primary uppercase mt-1 inline-block">অর্ডার আইডি: #{o.id.substring(0,8)}</span>
-                          </div>
-                       </div>
-
-                       <div className="p-8 bg-slate-50 dark:bg-black/30 rounded-[32px] border border-slate-100 dark:border-white/10">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">অর্ডার ডিটেইলস</p>
-                          {o.products?.map((p: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center mb-2 last:mb-0 border-b border-slate-200 dark:border-white/5 pb-2 last:border-0">
-                               <p className="text-xs font-bold uppercase">{p.name} <span className="text-primary ml-1">x{p.quantity}</span></p>
-                               <p className="text-xs font-black">৳{p.price.toLocaleString()}</p>
-                            </div>
-                          ))}
-                          <div className="mt-4 pt-4 border-t-2 border-slate-200 dark:border-white/10 flex justify-between">
-                             <span className="text-[10px] font-black uppercase text-slate-400">সর্বমোট</span>
-                             <span className="text-lg font-black text-primary">৳{o.totalAmount.toLocaleString()}</span>
-                          </div>
-                       </div>
-                    </div>
-
-                    <div className="space-y-6">
-                       <div className="p-8 bg-primary/5 rounded-[32px] border border-primary/10">
-                          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-4">ভেরিফিকেশন তথ্য ({o.verificationType?.toUpperCase()})</p>
-                          
-                          {o.verificationType === 'nid' ? (
-                            <div className="space-y-4">
-                               <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                     <p className="text-[9px] font-black text-slate-400 uppercase">এনআইডি কার:</p>
-                                     <p className="text-xs font-bold uppercase">{o.parentInfo?.parentType === 'Mother' ? 'মায়ের' : 'বাবার'}</p>
-                                  </div>
-                                  <div>
-                                     <p className="text-[9px] font-black text-slate-400 uppercase">অভিভাবকের নাম:</p>
-                                     <p className="text-xs font-bold uppercase">{o.parentInfo?.parentName}</p>
-                                  </div>
-                               </div>
-                               <div>
-                                  <p className="text-[9px] font-black text-slate-400 uppercase">অভিভাবকের নম্বর:</p>
-                                  <p className="text-xs font-bold">{o.parentInfo?.parentPhone}</p>
-                               </div>
-                            </div>
-                          ) : (
-                            <div>
-                               <p className="text-[9px] font-black text-slate-400 uppercase">ট্রানজেকশন আইডি:</p>
-                               <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest bg-white dark:bg-black/40 p-3 rounded-xl mt-2 select-all">{o.transactionId || 'N/A'}</p>
-                            </div>
-                          )}
-
-                          <div className="mt-6 pt-6 border-t border-primary/10">
-                             <p className="text-[9px] font-black text-slate-400 uppercase mb-2">ডেলিভারি ঠিকানা:</p>
-                             <p className="text-xs font-bold leading-relaxed">{o.address?.fullAddress}</p>
-                          </div>
-                       </div>
-
-                       <div className="space-y-3">
-                          <label className="text-[10px] font-black text-slate-400 uppercase ml-2">অর্ডার স্ট্যাটাস আপডেট করুন</label>
-                          <select 
-                            value={o.status} 
-                            onChange={(e) => updateOrderStatus(o.id, e.target.value as OrderStatus)} 
-                            className="w-full h-14 bg-slate-900 text-white rounded-[20px] px-6 text-[10px] font-black uppercase outline-none border border-white/10"
-                          >
-                             {['pending', 'processing', 'packaging', 'shipped', 'delivered', 'canceled'].map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-            ))}
-            {sales.length === 0 && <div className="text-center py-40 opacity-20 uppercase font-black tracking-widest">এখনো কোন বিক্রি হয়নি</div>}
-          </div>
-        )}
-
-        {/* ... Rest of the tabs logic stays same ... */}
-        {activeTab === 'orders' && (
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           {orders.map(o => (
-             <div key={o.id} className="bg-white dark:bg-zinc-900 p-10 rounded-[40px] border border-slate-100 dark:border-white/5 flex flex-col gap-6 shadow-sm">
-                <div className="flex justify-between items-start">
-                   <div>
-                     <span className="text-[10px] font-black text-primary uppercase">অর্ডার আইডি: #{o.id?.substring(0,8)}</span>
-                     <h4 className="font-black text-lg">৳{o.totalAmount?.toLocaleString()}</h4>
-                     <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">{o.verificationType === 'nid' ? 'NID ভেরিফাইড' : '৩০০ অগ্রিম'}</p>
-                   </div>
-                   <span className={`px-5 py-2 rounded-2xl text-[9px] font-black uppercase border tracking-widest ${o.status === 'delivered' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-primary/5 text-primary'}`}>{o.status}</span>
-                </div>
-                <button onClick={() => setSelectedReceipt(o)} className="w-full h-14 bg-slate-50 dark:bg-black/40 rounded-2xl text-[9px] font-black uppercase tracking-widest">রিসিট ডাউনলোড করুন</button>
-             </div>
-           ))}
-           {orders.length === 0 && <div className="col-span-full text-center py-40 opacity-20 uppercase font-black tracking-widest">কোন অর্ডার পাওয়া যায়নি</div>}
+      {/* Wallet Summary */}
+      <div className="mx-6 mt-8 px-8 py-7 bg-slate-900 dark:bg-zinc-900 text-white rounded-[36px] flex items-center justify-between shadow-2xl relative overflow-hidden group">
+         <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+         <div className="flex items-center gap-4 relative z-10">
+            <div className="w-11 h-11 bg-white/10 rounded-2xl flex items-center justify-center text-primary border border-white/10">
+               <i className="fas fa-wallet text-lg"></i>
+            </div>
+            <div className="flex flex-col">
+               <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">ওয়ালেট ব্যালেন্স</span>
+               <span className="text-xl font-black brand-font italic">৳{user.walletBalance?.toLocaleString() || 0}</span>
+            </div>
          </div>
-        )}
-
-        {activeTab === 'notifications' && (
-           <div className="space-y-4">
-           {notifications.map(n => (
-             <div key={n.id} className="bg-white dark:bg-zinc-900 p-8 rounded-[32px] border border-slate-100 dark:border-white/5 flex gap-6 items-start">
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0"><i className="fas fa-bell"></i></div>
-                <div>
-                  <h4 className="font-black text-sm uppercase tracking-tight mb-2">{n.title}</h4>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-4">{n.message}</p>
-                  <span className="text-[8px] font-black uppercase text-slate-300 tracking-widest">
-                     {n.timestamp?.seconds ? new Date(n.timestamp.seconds * 1000).toLocaleString() : 'এখনই'}
-                  </span>
-                </div>
-             </div>
-           ))}
-           {notifications.length === 0 && <div className="text-center py-40 opacity-20 uppercase font-black tracking-widest">কোন নোটিফিকেশন নেই</div>}
-        </div>
-        )}
+         <Link to="/profile" className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white/40 hover:text-white transition-colors relative z-10">
+            <i className="fas fa-plus-circle"></i>
+         </Link>
       </div>
 
-      {selectedReceipt && <Receipt order={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
+      {/* Menu List */}
+      <div className="flex-1 px-4 py-10 space-y-2">
+        {menuItems.map((item) => {
+          if (item.sellerOnly && !isSeller) return null;
+          return (
+            <Link 
+              key={item.to} 
+              to={item.to} 
+              className="flex items-center justify-between h-18 px-6 rounded-[24px] hover:bg-slate-50 dark:hover:bg-white/5 transition-all active:scale-[0.98] group border border-transparent hover:border-slate-100 dark:hover:border-white/5"
+            >
+              <div className="flex items-center gap-5">
+                <div className={`w-12 h-12 rounded-2xl bg-slate-50 dark:bg-black flex items-center justify-center ${item.color} bg-opacity-10 group-hover:scale-110 transition-transform shadow-sm`}>
+                  <i className={`fas ${item.icon} text-base`}></i>
+                </div>
+                <div className="flex flex-col">
+                   <span className="text-sm font-black uppercase text-slate-700 dark:text-slate-300 tracking-tight">{item.label}</span>
+                   {item.sellerOnly && <span className="text-[7px] font-bold text-primary uppercase mt-0.5 tracking-widest">Merchant Dashboard</span>}
+                </div>
+              </div>
+              <i className="fas fa-chevron-right text-[10px] text-slate-300 group-hover:translate-x-2 transition-transform"></i>
+            </Link>
+          );
+        })}
+        
+        {user.isAdmin && (
+          <Link to="/admin" className="flex items-center justify-between h-18 px-6 rounded-[24px] bg-primary/5 hover:bg-primary/10 transition-all group border border-primary/10">
+            <div className="flex items-center gap-5">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/20">
+                <i className="fas fa-crown text-base"></i>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-black uppercase text-primary tracking-tight">অ্যাডমিন প্যানেল</span>
+                <span className="text-[7px] font-bold text-primary/60 uppercase mt-0.5 tracking-widest">Full System Control</span>
+              </div>
+            </div>
+            <i className="fas fa-arrow-right text-[10px] text-primary group-hover:translate-x-2 transition-transform"></i>
+          </Link>
+        )}
+
+        <button 
+          onClick={() => auth.signOut()}
+          className="w-full flex items-center justify-between h-18 px-6 rounded-[24px] hover:bg-rose-50 dark:hover:bg-rose-500/5 transition-all group mt-10"
+        >
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500">
+              <i className="fas fa-power-off text-base"></i>
+            </div>
+            <span className="text-sm font-black uppercase text-rose-500 tracking-tight">অ্যাকাউন্ট থেকে লগ আউট</span>
+          </div>
+        </button>
+      </div>
+
+      <div className="p-10 text-center opacity-30 pb-32">
+        <p className="text-[8px] font-black uppercase tracking-[0.6em] text-slate-400">Deep Shop Bangladesh v2.5 OFFICIAL</p>
+      </div>
     </div>
   );
 };
