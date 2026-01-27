@@ -1,4 +1,3 @@
-
 export type TransactionType = 'deposit' | 'withdraw' | 'send' | 'receive' | 'donation';
 export type TransactionStatus = 'pending' | 'completed' | 'rejected';
 export type OrderStatus = 'pending' | 'processing' | 'packaging' | 'shipped' | 'delivered' | 'canceled';
@@ -20,6 +19,15 @@ export interface User {
   createdAt: string;
   address?: string;
   profilePic?: string;
+  deviceId?: string;
+  lastIp?: string;
+}
+
+export interface BannedDevice {
+  id: string; // deviceId or IP
+  type: 'device' | 'ip';
+  reason?: string;
+  timestamp: any;
 }
 
 export interface Product {
@@ -69,7 +77,9 @@ export interface Story {
   userPic: string;
   image: string;
   text?: string;
-  link?: string;
+  textColor?: string;
+  textSize?: number;
+  textY?: number;
   timestamp: any;
   reactions?: { [uid: string]: string };
 }
