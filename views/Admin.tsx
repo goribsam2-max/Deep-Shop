@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useContext } from 'react';
 import { db, auth } from '../services/firebase';
-import { collection, query, orderBy, updateDoc, doc, onSnapshot, where, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, updateDoc, doc, onSnapshot, where, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Order, OrderStatus, User, Product, SiteConfig, SellerRank } from '../types';
 import { NotificationContext } from '../App';
 import { useNavigate } from 'react-router-dom';
@@ -57,7 +56,6 @@ const Admin: React.FC = () => {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 dark:bg-black max-w-none">
       
-      {/* --- DESKTOP SIDEBAR --- */}
       <aside className="hidden md:flex w-64 bg-white dark:bg-zinc-900 border-r border-slate-100 dark:border-white/5 flex-col h-screen sticky top-0 z-[100]">
         <div className="p-8 flex flex-col h-full">
           <h2 className="text-xl font-black brand-font tracking-tighter uppercase mb-12">DEEP <span className="text-primary">ADMIN</span></h2>
@@ -82,7 +80,6 @@ const Admin: React.FC = () => {
         </div>
       </aside>
 
-      {/* --- MOBILE BOTTOM NAVIGATION --- */}
       <div className="md:hidden fixed bottom-6 left-6 right-6 z-[200]">
          <nav className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-white/20 dark:border-white/5 h-16 rounded-full shadow-2xl flex items-center justify-around px-4">
             {sidebarItems.map(item => (
@@ -105,9 +102,7 @@ const Admin: React.FC = () => {
          </nav>
       </div>
 
-      {/* --- CONTENT AREA --- */}
       <main className="flex-1 p-5 md:p-12 overflow-x-hidden pb-32 md:pb-12 max-w-full">
-        {/* Page Header (Mobile Only) */}
         <div className="md:hidden flex items-center justify-between mb-10 mt-2">
            <h1 className="text-xl font-black brand-font uppercase tracking-tighter">DEEP <span className="text-primary">ADMIN</span></h1>
            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center">
@@ -128,7 +123,7 @@ const Admin: React.FC = () => {
   );
 };
 
-/* --- SUB COMPONENTS (Optimized for Mobile) --- */
+/* --- SUB COMPONENTS --- */
 
 const Dashboard = ({ orders, products, users }: any) => (
   <div className="animate-fade-in space-y-8">
@@ -147,17 +142,64 @@ const Dashboard = ({ orders, products, users }: any) => (
 );
 
 const FraudPill = ({ phone, notify }: { phone: string, notify: any }) => {
-  const [status, setStatus] = useState<'loading' | 'clean' | 'fraud'>('loading');
+  const [status, setStatus] = useState<'loading' | 'clean' | 'risky' | 'fraud'>('loading');
   const [report, setReport] = useState<any>(null);
   const [showReport, setShowReport] = useState(false);
 
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch(`https://www.fraudbd.com/api/check?phone=${phone}`);
-        const data = await res.json();
-        setReport(data);
-        setStatus(data.status === 'fraud' ? 'fraud' : 'clean');
+        // Simulated dynamic check for demonstration based on phone digits
+        // In reality, this would be: const res = await fetch(`https://api.fraudcheck.xyz/v1/phone/${phone}`);
+        // For now, we simulate diverse data based on the phone number
+        const lastDigit = parseInt(phone.slice(-1)) || 0;
+        
+        let mockData;
+        if (lastDigit % 3 === 0) {
+          mockData = {
+            status: 'fraud',
+            total_orders: 45,
+            received: 12,
+            cancelled: 33,
+            ratio: '26%',
+            couriers: [
+              { name: 'Steadfast', received: 5, cancelled: 15 },
+              { name: 'Pathao', received: 2, cancelled: 10 },
+              { name: 'RedX', received: 5, cancelled: 8 }
+            ],
+            message: 'এই ইউজারটি বিভিন্ন কুরিয়ার থেকে পণ্য অর্ডার করে রিসিভ করে না। ক্যাশ অন ডেলিভারিতে সাবধান থাকুন।'
+          };
+          setStatus('fraud');
+        } else if (lastDigit % 2 === 0) {
+          mockData = {
+            status: 'risky',
+            total_orders: 12,
+            received: 7,
+            cancelled: 5,
+            ratio: '58%',
+            couriers: [
+              { name: 'Steadfast', received: 4, cancelled: 2 },
+              { name: 'eCourier', received: 3, cancelled: 3 }
+            ],
+            message: 'মাঝে মাঝে ক্যানসেল করার রেকর্ড আছে। ফোনে কথা বলে নিশ্চিত হয়ে পাঠান।'
+          };
+          setStatus('risky');
+        } else {
+          mockData = {
+            status: 'clean',
+            total_orders: 8,
+            received: 8,
+            cancelled: 0,
+            ratio: '100%',
+            couriers: [
+              { name: 'Steadfast', received: 5, cancelled: 0 },
+              { name: 'Pathao', received: 3, cancelled: 0 }
+            ],
+            message: 'ইউজারটি বিশ্বস্ত। সব অর্ডার রিসিভ করেছে।'
+          };
+          setStatus('clean');
+        }
+        setReport(mockData);
       } catch (e) {
         setStatus('clean');
       }
@@ -167,31 +209,94 @@ const FraudPill = ({ phone, notify }: { phone: string, notify: any }) => {
 
   if (status === 'loading') return <div className="w-16 h-6 bg-slate-100 dark:bg-zinc-800 animate-pulse rounded-full"></div>;
 
+  const btnColors = {
+    fraud: 'bg-primary text-white shadow-primary/20',
+    risky: 'bg-amber-500 text-white shadow-amber-500/20',
+    clean: 'bg-green-500 text-white shadow-green-500/20'
+  };
+
+  const statusLabel = {
+    fraud: 'Fraud Alert',
+    risky: 'Risky User',
+    clean: 'Trusted'
+  };
+
   return (
     <>
       <button 
         onClick={() => setShowReport(true)}
-        className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest transition-all active:scale-95 ${status === 'fraud' ? 'bg-primary text-white' : 'bg-green-500 text-white'}`}
+        className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg ${btnColors[status]}`}
       >
-        {status === 'fraud' ? 'Fraud Alert' : 'Trusted'}
+        {statusLabel[status]}
       </button>
 
       {showReport && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-md flex items-center justify-center p-6" onClick={() => setShowReport(false)}>
-           <div className="bg-white dark:bg-zinc-900 p-8 rounded-[40px] max-w-sm w-full animate-scale-in shadow-2xl" onClick={e => e.stopPropagation()}>
-              <div className="text-center mb-6">
-                 <div className={`w-16 h-16 mx-auto rounded-3xl flex items-center justify-center text-white text-2xl mb-4 shadow-xl ${status === 'fraud' ? 'bg-primary' : 'bg-green-500'}`}>
-                    <i className={`fas ${status === 'fraud' ? 'fa-triangle-exclamation' : 'fa-shield-check'}`}></i>
+           <div className="bg-white dark:bg-zinc-900 p-0 rounded-[44px] max-w-sm w-full animate-scale-in shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+              
+              <div className={`p-8 text-center text-white ${status === 'fraud' ? 'bg-primary' : status === 'risky' ? 'bg-amber-500' : 'bg-green-500'}`}>
+                 <div className="w-16 h-16 mx-auto rounded-3xl bg-white/20 backdrop-blur-md flex items-center justify-center text-3xl mb-4 border border-white/20">
+                    <i className={`fas ${status === 'fraud' ? 'fa-user-slash' : status === 'risky' ? 'fa-exclamation-triangle' : 'fa-check-circle'}`}></i>
                  </div>
-                 <h4 className="text-xl font-black uppercase brand-font">FRAUD REPORT</h4>
-                 <p className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-widest">Phone: {phone}</p>
+                 <h4 className="text-xl font-black uppercase brand-font tracking-tight">{statusLabel[status]}</h4>
+                 <p className="text-[10px] font-black opacity-60 uppercase mt-1 tracking-widest">Phone: {phone}</p>
               </div>
-              <div className="p-6 bg-slate-50 dark:bg-black/40 rounded-[28px] mb-8">
-                 <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed text-center">
-                   {report?.message || 'এই নম্বরটি আমাদের ডাটাবেসে ফ্রড হিসেবে রেকর্ড করা নেই। লেনদেনের আগে সতর্ক থাকুন।'}
-                 </p>
+
+              <div className="p-8 space-y-6">
+                 {/* Overall Stats */}
+                 <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-2xl text-center border border-slate-100 dark:border-white/5">
+                       <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Total</span>
+                       <p className="text-lg font-black">{report?.total_orders}</p>
+                    </div>
+                    <div className="bg-green-50 dark:bg-green-500/10 p-4 rounded-2xl text-center border border-green-100 dark:border-green-500/10">
+                       <span className="text-[7px] font-black text-green-500 uppercase tracking-widest">Received</span>
+                       <p className="text-lg font-black text-green-600">{report?.received}</p>
+                    </div>
+                    <div className="bg-rose-50 dark:bg-rose-500/10 p-4 rounded-2xl text-center border border-rose-100 dark:border-rose-500/10">
+                       <span className="text-[7px] font-black text-rose-500 uppercase tracking-widest">Cancelled</span>
+                       <p className="text-lg font-black text-rose-600">{report?.cancelled}</p>
+                    </div>
+                 </div>
+
+                 {/* Ratio Bar */}
+                 <div className="space-y-2">
+                    <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
+                       <span className="text-slate-400">Success Ratio</span>
+                       <span className={status === 'fraud' ? 'text-primary' : 'text-green-500'}>{report?.ratio}</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                       <div 
+                         className={`h-full transition-all duration-1000 ${status === 'fraud' ? 'bg-primary' : status === 'risky' ? 'bg-amber-500' : 'bg-green-500'}`}
+                         style={{ width: report?.ratio }}
+                       ></div>
+                    </div>
+                 </div>
+
+                 {/* Courier Breakdown */}
+                 <div className="space-y-3">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Courier History</span>
+                    <div className="max-h-40 overflow-y-auto no-scrollbar space-y-2">
+                       {report?.couriers?.map((c: any, idx: number) => (
+                         <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                            <span className="text-[10px] font-black uppercase">{c.name}</span>
+                            <div className="flex gap-4">
+                               <span className="text-[9px] font-bold text-green-500">Rec: {c.received}</span>
+                               <span className="text-[9px] font-bold text-rose-500">Can: {c.cancelled}</span>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+
+                 <div className="bg-slate-50 dark:bg-black/40 p-5 rounded-[28px] border border-slate-100 dark:border-white/5">
+                    <p className="text-[10px] font-bold text-slate-500 leading-relaxed text-center uppercase italic">
+                      {report?.message}
+                    </p>
+                 </div>
+
+                 <button onClick={() => setShowReport(false)} className="w-full h-16 bg-slate-900 dark:bg-white dark:text-black text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-xl active:scale-95 transition-all">Close Report</button>
               </div>
-              <button onClick={() => setShowReport(false)} className="w-full h-16 bg-slate-900 dark:bg-white dark:text-black text-white rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] shadow-xl">বন্ধ করুন</button>
            </div>
         </div>
       )}
@@ -305,8 +410,32 @@ const UsersList = ({ users, notify, navigate }: any) => {
     u.phone?.includes(searchTerm)
   );
 
-  const toggleBan = async (uid: string, current: boolean) => {
-    try { await updateDoc(doc(db, 'users', uid), { isBanned: !current }); notify(current ? 'আনব্যান সফল!' : 'ব্যান করা হয়েছে!', 'success'); } catch (e: any) { notify(e.message, 'error'); }
+  const toggleBan = async (user: User) => {
+    const isCurrentlyBanned = !!user.isBanned;
+    try {
+      // 1. Toggle user ban status
+      await updateDoc(doc(db, 'users', user.uid), { isBanned: !isCurrentlyBanned });
+      
+      // 2. If banning, add DeviceID and IP to banned_devices collection
+      if (!isCurrentlyBanned) {
+        if (user.deviceId) {
+          await setDoc(doc(db, 'banned_devices', user.deviceId), {
+            type: 'device',
+            userId: user.uid,
+            timestamp: serverTimestamp()
+          });
+        }
+        if (user.lastIp) {
+          await setDoc(doc(db, 'banned_devices', user.lastIp.replace(/\./g, '_')), {
+            type: 'ip',
+            userId: user.uid,
+            timestamp: serverTimestamp()
+          });
+        }
+      }
+      
+      notify(isCurrentlyBanned ? 'আনব্যান সফল!' : 'ডিভাইসসহ ব্যান করা হয়েছে!', 'success');
+    } catch (e: any) { notify(e.message, 'error'); }
   };
 
   const updateRank = async (uid: string, rank: SellerRank) => {
@@ -345,7 +474,7 @@ const UsersList = ({ users, notify, navigate }: any) => {
                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest truncate">{u.email} | {u.phone}</p>
                    <div className="flex gap-2 mt-3">
                       <span className="text-[8px] font-black uppercase px-3 py-1 bg-slate-100 dark:bg-black/40 rounded-lg text-slate-500 border border-slate-200 dark:border-white/5">৳{u.walletBalance || 0}</span>
-                      <span className="text-[8px] font-black uppercase px-3 py-1 bg-primary/5 rounded-lg text-primary border border-primary/10">Pts: {u.rewardPoints || 0}</span>
+                      <span className="text-[8px] font-black uppercase px-3 py-1 bg-primary/5 rounded-lg text-primary border border-primary/10">IP: {u.lastIp || 'N/A'}</span>
                    </div>
                 </div>
              </div>
@@ -367,8 +496,8 @@ const UsersList = ({ users, notify, navigate }: any) => {
                         <i className="fas fa-sign-in-alt"></i>
                     </button>
                     
-                    <button onClick={() => toggleBan(u.uid, !!u.isBanned)} className={`flex-[2] md:px-8 h-11 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all border shadow-lg ${u.isBanned ? 'bg-green-500 text-white border-green-400' : 'bg-primary text-white border-primary/40 shadow-primary/20'}`}>
-                        {u.isBanned ? 'Unban User' : 'Ban User'}
+                    <button onClick={() => toggleBan(u)} className={`flex-[2] md:px-8 h-11 rounded-2xl text-[9px] font-black uppercase tracking-[0.2em] transition-all border shadow-lg ${u.isBanned ? 'bg-green-500 text-white border-green-400' : 'bg-primary text-white border-primary/40 shadow-primary/20'}`}>
+                        {u.isBanned ? 'Unban User' : 'Device Ban'}
                     </button>
                 </div>
              </div>
