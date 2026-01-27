@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { auth, db } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+// Added updateDoc to imports
+import { doc, onSnapshot, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { User } from './types';
 
 // Views
@@ -31,18 +31,34 @@ import GlobalNotification from './components/Notification';
 import Navbar from './components/Navbar';
 import BottomNav from './components/BottomNav';
 import Sidebar from './components/Sidebar';
+import BanScreen from './components/BanScreen';
 
 export const NotificationContext = React.createContext<{
   notify: (msg: string, type?: 'success' | 'error' | 'info') => void;
 }>({ notify: () => {} });
 
-const AppLayout: React.FC<{ user: User | null; exitShadowMode: () => void }> = ({ user, exitShadowMode }) => {
+// Helper to get or create device ID
+const getDeviceId = () => {
+  let id = localStorage.getItem('ds_device_id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    localStorage.setItem('ds_device_id', id);
+  }
+  return id;
+};
+
+const AppLayout: React.FC<{ user: User | null; exitShadowMode: () => void; isGlobalBanned: boolean; banDetails: any }> = ({ user, exitShadowMode, isGlobalBanned, banDetails }) => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [hasUnreadNotify, setHasUnreadNotify] = useState(false);
 
+  // If banned, show nothing but the BanScreen
+  if (isGlobalBanned || (user && user.isBanned)) {
+    return <BanScreen ip={banDetails?.ip} deviceId={banDetails?.deviceId} reason={user?.isBanned ? "Account Disabled" : "Device/IP Restricted"} />;
+  }
+
   const isHome = location.pathname === '/';
-  const hideNav = ['/auth', '/checkout', '/chat/'].some(path => location.pathname.includes(path));
+  const hideNav = ['/auth', '/checkout', '/chat/', '/story/'].some(path => location.pathname.includes(path));
 
   useEffect(() => {
     if (user?.uid) {
@@ -90,7 +106,6 @@ const AppLayout: React.FC<{ user: User | null; exitShadowMode: () => void }> = (
         </Routes>
       </main>
 
-      {/* BottomNav shown ONLY on Home page */}
       {isHome && <BottomNav />}
     </div>
   );
@@ -100,31 +115,68 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [globalNotify, setGlobalNotify] = useState<{ msg: string, type: 'success' | 'error' | 'info' } | null>(null);
+  const [isGlobalBanned, setIsGlobalBanned] = useState(false);
+  const [banDetails, setBanDetails] = useState<any>(null);
   
   useEffect(() => {
-    const shadowUserStr = localStorage.getItem('shadow_user');
-    if (shadowUserStr) {
-      const shadowUser = JSON.parse(shadowUserStr) as User;
-      setUser({ ...shadowUser, isShadowMode: true });
-      setLoading(false);
-      return;
-    }
+    const checkBanStatus = async () => {
+      const deviceId = getDeviceId();
+      let ip = 'unknown';
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        ip = ipData.ip;
+      } catch (e) {}
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        const unsubUser = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
-          if (docSnap.exists()) {
-            setUser({ uid: firebaseUser.uid, ...docSnap.data() } as User);
-          }
-          setLoading(false);
-        }, () => setLoading(false));
-        return () => unsubUser();
-      } else {
-        setUser(null);
+      setBanDetails({ ip, deviceId });
+
+      // Check if this specific IP or DeviceID is banned in Firestore
+      const deviceBanRef = doc(db, 'banned_devices', deviceId);
+      const ipBanRef = doc(db, 'banned_devices', ip.replace(/\./g, '_'));
+      
+      const [dSnap, iSnap] = await Promise.all([getDoc(deviceBanRef), getDoc(ipBanRef)]);
+      
+      if (dSnap.exists() || iSnap.exists()) {
+        setIsGlobalBanned(true);
         setLoading(false);
+        return;
       }
-    });
-    return () => unsubscribe();
+
+      // Proceed with Auth Check
+      const shadowUserStr = localStorage.getItem('shadow_user');
+      if (shadowUserStr) {
+        const shadowUser = JSON.parse(shadowUserStr) as User;
+        setUser({ ...shadowUser, isShadowMode: true });
+        setLoading(false);
+        return;
+      }
+
+      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+          const unsubUser = onSnapshot(doc(db, 'users', firebaseUser.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              const userData = { uid: firebaseUser.uid, ...docSnap.data() } as User;
+              setUser(userData);
+              
+              // Update user's device info for tracking
+              // updateDoc is now imported above
+              updateDoc(doc(db, 'users', firebaseUser.uid), {
+                deviceId: deviceId,
+                lastIp: ip
+              }).catch(() => {});
+            }
+            setLoading(false);
+          }, () => setLoading(false));
+          return () => unsubUser();
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+      });
+      return () => unsubscribe();
+    };
+
+    checkBanStatus();
   }, []);
 
   const notify = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -141,7 +193,12 @@ const App: React.FC = () => {
   return (
     <NotificationContext.Provider value={{ notify }}>
       <HashRouter>
-        <AppLayout user={user} exitShadowMode={exitShadowMode} />
+        <AppLayout 
+          user={user} 
+          exitShadowMode={exitShadowMode} 
+          isGlobalBanned={isGlobalBanned}
+          banDetails={banDetails}
+        />
         {globalNotify && (
           <GlobalNotification 
             message={globalNotify.msg} 
