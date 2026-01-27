@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -26,6 +25,7 @@ const ChatRoom: React.FC<{ user: User }> = ({ user }) => {
   const [availableContacts, setAvailableContacts] = useState<any[]>([]);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<any>(null);
   const groupPicRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,12 +64,24 @@ const ChatRoom: React.FC<{ user: User }> = ({ user }) => {
     const text = inputText;
     setInputText('');
     try {
-      await addDoc(collection(db, 'chats', chatId, 'messages'), { senderId: user.uid, senderName: user.name, text: text, timestamp: serverTimestamp() });
+      await addDoc(collection(db, 'chats', chatId, 'messages'), { 
+        senderId: user.uid, 
+        senderName: user.name, 
+        text: text, 
+        timestamp: serverTimestamp() 
+      });
       const otherIds = chatInfo?.participants.filter(p => p !== user.uid) || [];
       const updateData: any = { lastMessage: text, lastMessageTime: serverTimestamp() };
       otherIds.forEach(id => { updateData[`unreadCount.${id}`] = increment(1); });
       await updateDoc(doc(db, 'chats', chatId), updateData);
     } catch (e) {}
+  };
+
+  const handleCopyLink = () => {
+    if (!chatId) return;
+    const link = `${window.location.origin}/#/messages?join=${chatId}`;
+    navigator.clipboard.writeText(link);
+    notify('গ্রুপ লিঙ্ক কপি হয়েছে!', 'success');
   };
 
   const handleGroupPicChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,12 +156,17 @@ const ChatRoom: React.FC<{ user: User }> = ({ user }) => {
       <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar pb-32">
         {messages.map((msg) => {
           const isMe = msg.senderId === user.uid;
+          const isBot = msg.senderId === 'system_bot';
           return (
-            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-fade-in`}>
-               {isGroup && !isMe && <span className="text-[7px] font-black uppercase text-slate-400 mb-1 ml-2">{msg.senderName}</span>}
-               <div className="relative group max-w-[85%]">
-                  <div className={`p-3.5 rounded-[22px] relative shadow-sm border border-slate-100 dark:border-white/5 ${isMe ? 'bg-primary text-white rounded-br-none' : 'bg-white dark:bg-zinc-900 text-slate-800 dark:text-slate-200 rounded-bl-none'}`}>
-                     {msg.text && <p className="text-xs font-medium leading-relaxed">{msg.text}</p>}
+            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : (isBot ? 'items-center' : 'items-start')} animate-fade-in`}>
+               {isGroup && !isMe && !isBot && <span className="text-[7px] font-black uppercase text-slate-400 mb-1 ml-2">{msg.senderName}</span>}
+               <div className={`relative group ${isBot ? 'max-w-full w-full' : 'max-w-[85%]'}`}>
+                  <div className={`p-3.5 rounded-[22px] relative shadow-sm border ${
+                    isBot ? 'bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-center text-[10px] font-black uppercase tracking-wider' : 
+                    isMe ? 'bg-primary text-white rounded-br-none border-primary' : 
+                    'bg-white dark:bg-zinc-900 text-slate-800 dark:text-slate-200 rounded-bl-none border-slate-100 dark:border-white/5'
+                  }`}>
+                     {msg.text && <p className={isBot ? '' : 'text-xs font-medium leading-relaxed'}>{msg.text}</p>}
                   </div>
                </div>
             </div>
@@ -177,6 +194,12 @@ const ChatRoom: React.FC<{ user: User }> = ({ user }) => {
                  </div>
                  
                  <div className="flex-1 overflow-y-auto space-y-4 no-scrollbar pr-1">
+                    {isGroup && (
+                       <button onClick={handleCopyLink} className="w-full h-14 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all">
+                          <i className="fas fa-link"></i> গ্রুপ লিঙ্ক কপি
+                       </button>
+                    )}
+
                     {isGroup && isOwner && (
                        <button onClick={() => setShowAddMember(!showAddMember)} className="w-full h-14 bg-green-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all"><i className="fas fa-user-plus"></i> মেম্বার অ্যাড</button>
                     )}
@@ -232,7 +255,7 @@ const ChatRoom: React.FC<{ user: User }> = ({ user }) => {
         </div>
       )}
 
-      {/* Input Bar kept same as previous functionality... */}
+      {/* Input Bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-white/95 dark:bg-black/95 backdrop-blur-xl p-4 border-t border-slate-100 dark:border-white/5 flex items-center gap-3 z-[200]">
          <input placeholder="মেসেজ লিখুন..." className="flex-1 h-11 bg-slate-100 dark:bg-white/5 rounded-2xl px-5 outline-none font-bold text-xs" value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
          <button onClick={handleSend} className="w-11 h-11 bg-primary text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-all shrink-0"><i className="fas fa-paper-plane text-xs"></i></button>
