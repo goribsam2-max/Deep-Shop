@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
-import { doc, onSnapshot, updateDoc, addDoc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, addDoc, collection, serverTimestamp, getDoc, increment } from 'firebase/firestore';
 import { User, Story } from '../types';
 import Loader from '../components/Loader';
 
@@ -24,16 +23,45 @@ const StoryViewer: React.FC<{ user: User }> = ({ user }) => {
 
   const handleReply = async () => {
     if (!reply.trim() || !story) return;
+    if (user.uid === story.userId) return;
+
     const chatId = [user.uid, story.userId].sort().join('_');
     const chatRef = doc(db, 'chats', chatId);
-    const chatSnap = await getDoc(chatRef);
-    if (!chatSnap.exists()) {
-      await updateDoc(chatRef, { participants: [user.uid, story.userId], participantData: { [user.uid]: { name: user.name, pic: user.profilePic || '' }, [story.userId]: { name: story.userName, pic: story.userPic || '' } } });
+    
+    try {
+      const chatSnap = await getDoc(chatRef);
+      if (!chatSnap.exists()) {
+        await setDoc(chatRef, {
+          participants: [user.uid, story.userId],
+          participantData: {
+            [user.uid]: { name: user.name, pic: user.profilePic || '' },
+            [story.userId]: { name: story.userName, pic: story.userPic || '' }
+          },
+          lastMessage: `📷 Story Reply: ${reply}`,
+          lastMessageTime: serverTimestamp(),
+          unreadCount: { [story.userId]: 1, [user.uid]: 0 }
+        });
+      } else {
+        await setDoc(chatRef, {
+          lastMessage: `📷 Story Reply: ${reply}`,
+          lastMessageTime: serverTimestamp(),
+          [`unreadCount.${story.userId}`]: increment(1)
+        }, { merge: true });
+      }
+
+      await addDoc(collection(db, 'chats', chatId, 'messages'), {
+        senderId: user.uid,
+        senderName: user.name,
+        text: `রিপ্লাই টু স্টোরি: ${reply}`,
+        images: [story.image],
+        timestamp: serverTimestamp()
+      });
+
+      setReply('');
+      navigate(`/chat/${chatId}`);
+    } catch (e) {
+      console.error(e);
     }
-    await addDoc(collection(db, 'chats', chatId, 'messages'), { senderId: user.uid, text: `রিপ্লাই টু স্টোরি: ${reply}`, images: [story.image], timestamp: serverTimestamp() });
-    await updateDoc(chatRef, { lastMessage: `📷 স্টোরি রিপ্লাই: ${reply}`, lastMessageTime: serverTimestamp() });
-    setReply('');
-    navigate('/messages');
   };
 
   if (loading) return <Loader fullScreen />;
@@ -41,35 +69,40 @@ const StoryViewer: React.FC<{ user: User }> = ({ user }) => {
 
   return (
     <div className="fixed inset-0 z-[4000] bg-black flex flex-col animate-fade-in overflow-hidden">
-       {/* User Info Bar */}
        <div className="absolute top-8 left-6 right-6 flex items-center justify-between z-20">
           <div className="flex items-center gap-3">
-             <img src={story.userPic || `https://ui-avatars.com/api/?name=${encodeURIComponent(story.userName)}`} className="w-10 h-10 rounded-full border border-white/20 object-cover shadow-lg" />
+             <img src={story.userPic || `https://ui-avatars.com/api/?name=${encodeURIComponent(story.userName)}`} className="w-10 h-10 rounded-full border border-white/20 object-cover shadow-lg" alt="" />
              <h4 className="text-white text-xs font-black uppercase tracking-tight">{story.userName}</h4>
           </div>
           <button onClick={() => navigate('/messages')} className="text-white text-xl p-2"><i className="fas fa-times"></i></button>
        </div>
 
-       {/* Square Constraint for Story Content */}
        <div className="flex-1 flex flex-col items-center justify-center p-4">
-          <div className="relative w-full max-w-[420px] aspect-square bg-zinc-900 rounded-[32px] overflow-hidden shadow-2xl border border-white/5">
+          <div className="relative w-full max-w-[420px] aspect-[9/16] bg-zinc-900 rounded-[44px] overflow-hidden shadow-2xl border border-white/5">
              <img src={story.image} className="w-full h-full object-cover" alt="" />
              {story.text && (
-               <div className="absolute bottom-6 left-6 right-6 bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                 <p className="text-white text-center font-bold text-xs leading-relaxed uppercase tracking-wide">{story.text}</p>
+               <div 
+                className="absolute left-0 right-0 px-8 text-center pointer-events-none"
+                style={{ top: `${story.textY || 50}%`, transform: 'translateY(-50%)' }}
+               >
+                 <p 
+                  className="font-black uppercase brand-font break-words"
+                  style={{ color: story.textColor || '#ffffff', fontSize: `${story.textSize || 16}px` }}
+                 >
+                   {story.text}
+                 </p>
                </div>
              )}
           </div>
        </div>
 
-       {/* Story Controls - Guaranteed Visibility */}
        <div className="p-6 space-y-6 bg-gradient-to-t from-black via-black/60 to-transparent pb-10">
           <div className="flex justify-around items-center max-w-sm mx-auto">
              {['❤️', '😂', '🔥', '😡', '👍'].map(emo => (
                <button key={emo} onClick={async () => {
                  const current = story.reactions || {};
                  current[user.uid] = emo;
-                 await updateDoc(doc(db, 'stories', storyId!), { reactions: current });
+                 await setDoc(doc(db, 'stories', storyId!), { reactions: current }, { merge: true });
                }} className={`text-2xl active:scale-150 transition-all ${story.reactions?.[user.uid] === emo ? 'grayscale-0' : 'grayscale opacity-60'}`}>{emo}</button>
              ))}
           </div>
